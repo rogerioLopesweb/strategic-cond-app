@@ -20,10 +20,12 @@ import { COLORS } from "../../constants/theme";
 import { useAuthContext } from "../../src/context/AuthContext";
 import { useEntregas } from "../../src/hooks/useEntregas";
 import Header from "../components/Header";
+// Importação do novo componente
+import { SeletorMoradores } from "./components/SeletorMoradores";
 
 export default function CadastroEntrega() {
   const router = useRouter();
-  const { user } = useAuthContext();
+  const { user, logout } = useAuthContext(); // Adicionado logout aqui
   const params = useLocalSearchParams();
   const { salvar, loading } = useEntregas();
 
@@ -31,6 +33,7 @@ export default function CadastroEntrega() {
   const [bloco, setBloco] = useState("");
   const [unidade, setUnidade] = useState("");
   const [destinatario, setDestinatario] = useState("");
+  const [moradorIdReal, setMoradorIdReal] = useState<string | null>(null); // Novo estado
   const [codigo, setCodigo] = useState("");
   const [marketplace, setMarketplace] = useState("Mercado Livre");
   const [urgente, setUrgente] = useState(false);
@@ -51,18 +54,14 @@ export default function CadastroEntrega() {
   const tirarFoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert(
-        "Permissão necessária",
-        "Precisamos de acesso à câmera para fotografar a etiqueta.",
-      );
+      Alert.alert("Permissão necessária", "Precisamos de acesso à câmera.");
       return;
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      // Tente desta forma (array de strings), que é o padrão novo:
       mediaTypes: ["images"],
       allowsEditing: true,
-      aspect: [4, 3], // Opcional: força um formato de foto
+      aspect: [4, 3],
       quality: 0.5,
       base64: true,
     });
@@ -73,29 +72,21 @@ export default function CadastroEntrega() {
   };
 
   const handleSalvar = async () => {
-    console.log("🚀 Botão 'Confirmar Recebimento' pressionado!");
-
-    // 1. Limpeza e Validação de Campos
     const b = bloco.trim();
     const u = unidade.trim();
     const c = codigo.trim();
 
-    console.log("🔍 Verificando valores:", { bloco: b, unidade: u, codigo: c });
-
-    if (!b || !u || !c) {
-      console.warn("⚠️ Validação falhou: Campos obrigatórios em branco.");
+    if (!b || !u || !c || !moradorIdReal) {
       Alert.alert(
         "Campos obrigatórios",
-        "Por favor, preencha Bloco, Unidade e Código de Rastreio para continuar.",
-        [{ text: "OK" }],
+        "Preencha Bloco, Unidade, Código e selecione um morador para continuar.",
       );
       return;
     }
 
-    // 2. Preparação do Payload
     const payload = {
       condominio_id: user?.condominio_id,
-      morador_id: "f9e8d7c6-b5a4-4c3d-2e1f-0a9b8c7d6e5f", // ID fixo para teste
+      morador_id: moradorIdReal, // AGORA USA O ID REAL DO COMPONENTE
       codigo_rastreio: c,
       unidade: u,
       bloco: b,
@@ -104,35 +95,21 @@ export default function CadastroEntrega() {
       foto_base64: fotoBase64,
     };
 
-    console.log("📦 Payload preparado para envio:", {
-      ...payload,
-      foto_base64: fotoBase64
-        ? `String Base64 (${fotoBase64.length} chars)`
-        : "Nenhuma foto",
-    });
-
     try {
-      console.log("📡 Chamando hook salvar...");
       const result = await salvar(payload);
-
-      console.log("📥 Resposta da API no componente:", result);
-
       if (result.success) {
-        console.log("✅ Registro salvo com sucesso!");
-        Alert.alert("Sucesso", "Encomenda registrada com sucesso!");
+        Alert.alert("Sucesso", "Encomenda registrada!");
         router.back();
       } else {
         if (result.isAuthError) {
-          // Se o erro for de token, chama o logout do contexto para limpar o estado do React
           logout();
-          router.replace("/"); // Manda para o Login
+          router.replace("/");
         } else {
           Alert.alert("Erro", result.error);
         }
       }
     } catch (err) {
-      console.error("💥 Erro crítico no handleSalvar:", err);
-      Alert.alert("Erro de Conexão", "Não foi possível falar com o servidor.");
+      Alert.alert("Erro", "Falha na conexão com o servidor.");
     }
   };
 
@@ -152,7 +129,6 @@ export default function CadastroEntrega() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.card}>
-            {/* FOTO ETIQUETA */}
             <TouchableOpacity style={styles.fotoContainer} onPress={tirarFoto}>
               {fotoBase64 ? (
                 <Image
@@ -167,7 +143,6 @@ export default function CadastroEntrega() {
               )}
             </TouchableOpacity>
 
-            {/* IDENTIFICAÇÃO */}
             <Text style={styles.labelSection}>
               IDENTIFICAÇÃO DA PROPRIEDADE
             </Text>
@@ -176,7 +151,7 @@ export default function CadastroEntrega() {
                 <Text style={styles.label}>BLOCO/TORRE</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Ex: 1"
+                  placeholder="Ex: A"
                   value={bloco}
                   onChangeText={setBloco}
                   autoCapitalize="characters"
@@ -186,7 +161,7 @@ export default function CadastroEntrega() {
                 <Text style={styles.label}>Nº UNIDADE</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Ex: 102"
+                  placeholder="Ex: 101"
                   value={unidade}
                   onChangeText={setUnidade}
                   keyboardType="numeric"
@@ -194,23 +169,36 @@ export default function CadastroEntrega() {
               </View>
             </View>
 
-            {/* DESTINATÁRIO */}
+            {/* APLICAÇÃO DO NOVO COMPONENTE DE SELEÇÃO */}
+            <SeletorMoradores
+              condominioId={user?.condominio_id}
+              bloco={bloco}
+              unidade={unidade}
+              selecionadoId={moradorIdReal}
+              onSelecionar={(morador) => {
+                // 1. Vincula o ID para a API de salvamento
+                setMoradorIdReal(morador.usuario_id);
+
+                // 2. Preenche o campo de texto visualmente
+                setDestinatario(morador.Nome || (morador as any).nome);
+
+                // 3. Opcional: Feedback tátil ou log
+                console.log("🎯 Morador vinculado:", morador.usuario_id);
+              }}
+            />
+
             <Text style={styles.label}>NOME DO DESTINATÁRIO</Text>
             <View style={styles.inputRow}>
               <TextInput
                 style={styles.input}
-                placeholder="Nome do morador..."
+                placeholder="Selecione acima ou digite..."
                 value={destinatario}
                 onChangeText={setDestinatario}
               />
-              <TouchableOpacity style={styles.btnIconInput}>
-                <Ionicons name="search" size={20} color={COLORS.primary} />
-              </TouchableOpacity>
             </View>
 
             <View style={styles.divider} />
 
-            {/* ENCOMENDA */}
             <Text style={styles.labelSection}>DADOS DA ENCOMENDA</Text>
             <Text style={styles.label}>CÓDIGO DE RASTREIO</Text>
             <View style={styles.inputRow}>
@@ -418,6 +406,3 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
-function logout() {
-  throw new Error("Function not implemented.");
-}

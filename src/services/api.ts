@@ -6,26 +6,49 @@ export const api = axios.create({
   timeout: 15000,
 });
 
-// ... Interceptor de Request que já fizemos (mantém igual) ...
+/**
+ * INTERCEPTOR DE REQUEST
+ * Garante que o Token seja enviado em todas as chamadas
+ */
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      // Importante: A chave deve ser a mesma usada no seu AuthContext
+      const token = await AsyncStorage.getItem("@StrategicCond:token");
 
-// NOVO: Interceptor de Resposta para forçar Logoff
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    } catch (error) {
+      return Promise.reject(error);
+    }
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
+
+/**
+ * INTERCEPTOR DE RESPOSTA
+ * Detecta se o servidor rejeitou o token e limpa o app
+ */
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Se o erro for 401 (Não autorizado), o token expirou ou é inválido
+    // Se o servidor retornar 401, significa que o Token não foi aceito
     if (error.response && error.response.status === 401) {
       console.warn("⚠️ Token expirado ou inválido. Forçando logout...");
 
       try {
-        // Limpa todas as variáveis locais do StrategicCond
+        // Limpa o armazenamento local
         await AsyncStorage.multiRemove([
           "@StrategicCond:user",
           "@StrategicCond:token",
         ]);
 
-        // Aqui, o estado 'signed' no seu AuthContext vai mudar para false
-        // e o Expo Router vai te jogar para a tela de login automaticamente
-        // se você estiver usando um redirecionamento baseado no 'user'.
+        // Nota: O redirecionamento acontece porque o estado do seu AuthContext
+        // mudará ao detectar que o token sumiu.
       } catch (e) {
         console.error("Erro ao limpar storage no logout forçado", e);
       }
