@@ -9,8 +9,8 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../../constants/theme";
 import { useAuthContext } from "../../src/context/AuthContext"; // 1. Importando o contexto real
+import { COLORS } from "../constants/theme";
 import SideMenu from "./SideMenu";
 
 interface HeaderProps {

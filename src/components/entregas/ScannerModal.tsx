@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../../../constants/theme";
+import { COLORS } from "../../constants/theme";
 
 interface ScannerModalProps {
   visible: boolean;

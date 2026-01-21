@@ -16,12 +16,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../../constants/theme";
+import Header from "../../src/components/Header";
+import { COLORS } from "../../src/constants/theme";
 import { useAuthContext } from "../../src/context/AuthContext";
 import { useEntregas } from "../../src/hooks/useEntregas";
-import Header from "../components/Header";
 // Importação do novo componente
-import { SeletorMoradores } from "./components/SeletorMoradores";
+import { SeletorMoradores } from "../../src/components/entregas/SeletorMoradores";
 
 export default function CadastroEntrega() {
   const router = useRouter();

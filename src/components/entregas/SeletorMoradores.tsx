@@ -2,16 +2,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { COLORS } from "../../../constants/theme";
 import { useAuthContext } from "../../../src/context/AuthContext";
 import { unidadeService } from "../../../src/services/unidadeService";
+import { COLORS } from "../../constants/theme";
 
 interface Morador {
   usuario_id: string;

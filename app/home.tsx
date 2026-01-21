@@ -8,9 +8,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../constants/theme";
-import Header from "./components/Header";
-import ScannerModal from "./entregas/components/ScannerModal";
+import ScannerModal from "../src/components//entregas/ScannerModal";
+import Header from "../src/components/Header";
+import { COLORS } from "../src/constants/theme";
 
 // 1. Importar o contexto para acessar o usuário e a função de logout
 import { useAuthContext } from "../src/context/AuthContext";
