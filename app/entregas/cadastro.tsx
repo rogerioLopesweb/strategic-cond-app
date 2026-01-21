@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -16,50 +15,71 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { FeedbackModal } from "../../src/components/common/FeedbackModal"; // Importando o novo Modal
+import { SeletorMoradores } from "../../src/components/entregas/SeletorMoradores";
 import Header from "../../src/components/Header";
 import { COLORS } from "../../src/constants/theme";
 import { useAuthContext } from "../../src/context/AuthContext";
-import { useEntregas } from "../../src/hooks/useEntregas";
-// Importação do novo componente
-import { SeletorMoradores } from "../../src/components/entregas/SeletorMoradores";
+import { entregaService } from "../../src/services/entregaService";
 
 export default function CadastroEntrega() {
   const router = useRouter();
-  const { user, logout } = useAuthContext(); // Adicionado logout aqui
+  const { user, logout } = useAuthContext();
   const params = useLocalSearchParams();
-  const { salvar, loading } = useEntregas();
+
+  const [loading, setLoading] = useState(false);
+
+  // Estado para o Modal de Feedback
+  const [modalConfig, setModalConfig] = useState({
+    visible: false,
+    type: "success" as "success" | "error" | "warning" | "confirm",
+    title: "",
+    message: "",
+  });
 
   // Estados do Formulário
   const [bloco, setBloco] = useState("");
   const [unidade, setUnidade] = useState("");
   const [destinatario, setDestinatario] = useState("");
-  const [moradorIdReal, setMoradorIdReal] = useState<string | null>(null); // Novo estado
+  const [moradorIdReal, setMoradorIdReal] = useState<string | null>(null);
   const [codigo, setCodigo] = useState("");
   const [marketplace, setMarketplace] = useState("Mercado Livre");
+  const [tipoEmbalagem, setTipoEmbalagem] = useState("Pacote");
   const [urgente, setUrgente] = useState(false);
   const [obs, setObs] = useState("");
   const [fotoBase64, setFotoBase64] = useState<string | null>(null);
 
   useEffect(() => {
-    if (params.id) {
-      setBloco(params.bloco as string);
-      setUnidade(params.unidade as string);
-      setDestinatario(params.morador as string);
-      setCodigo(params.codigo as string);
-      setMarketplace((params.marketplace as string) || "Amazon");
-      setUrgente(params.urgente === "true");
+    if (params.id && params.editar === "true") {
+      setBloco((params.bloco as string) || "");
+      setUnidade((params.unidade as string) || "");
+      setDestinatario((params.morador_nome as string) || "");
+      setMoradorIdReal((params.morador_id as string) || null);
+      setCodigo((params.codigo_rastreio as string) || "");
+      setMarketplace((params.marketplace as string) || "Mercado Livre");
+      setTipoEmbalagem((params.tipo_embalagem as string) || "Pacote");
+      setUrgente(params.retirada_urgente === "true");
+      setObs((params.observacoes as string) || "");
     }
   }, [params]);
+
+  const mostrarAviso = (type: any, title: string, message: string) => {
+    setModalConfig({ visible: true, type, title, message });
+  };
 
   const tirarFoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permissão necessária", "Precisamos de acesso à câmera.");
+      mostrarAviso(
+        "error",
+        "Permissão Negada",
+        "Precisamos de acesso à câmera para fotografar a etiqueta.",
+      );
       return;
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.5,
@@ -76,47 +96,68 @@ export default function CadastroEntrega() {
     const u = unidade.trim();
     const c = codigo.trim();
 
-    if (!b || !u || !c || !moradorIdReal) {
-      Alert.alert(
-        "Campos obrigatórios",
-        "Preencha Bloco, Unidade, Código e selecione um morador para continuar.",
+    if (!b || !u || !moradorIdReal) {
+      mostrarAviso(
+        "warning",
+        "Campos Obrigatórios",
+        "Bloco, Unidade e a seleção de um Morador são essenciais.",
       );
       return;
     }
 
+    setLoading(true);
+
     const payload = {
       condominio_id: user?.condominio_id,
-      morador_id: moradorIdReal, // AGORA USA O ID REAL DO COMPONENTE
+      morador_id: moradorIdReal,
       codigo_rastreio: c,
       unidade: u,
       bloco: b,
       marketplace,
+      tipo_embalagem: tipoEmbalagem,
+      retirada_urgente: urgente,
       observacoes: obs,
       foto_base64: fotoBase64,
     };
 
     try {
-      const result = await salvar(payload);
-      if (result.success) {
-        Alert.alert("Sucesso", "Encomenda registrada!");
-        router.back();
+      let result;
+      if (params.id && params.editar === "true") {
+        result = await entregaService.atualizar(params.id as string, payload);
       } else {
-        if (result.isAuthError) {
-          logout();
-          router.replace("/");
-        } else {
-          Alert.alert("Erro", result.error);
-        }
+        result = await entregaService.registrar(payload);
+      }
+
+      if (result.success) {
+        mostrarAviso(
+          "success",
+          "Tudo Pronto!",
+          params.id
+            ? "Cadastro atualizado com sucesso!"
+            : "Encomenda registrada e morador notificado!",
+        );
+      } else {
+        mostrarAviso(
+          "error",
+          "Ops!",
+          result.error || "Não conseguimos salvar os dados.",
+        );
       }
     } catch (err) {
-      Alert.alert("Erro", "Falha na conexão com o servidor.");
+      mostrarAviso(
+        "error",
+        "Erro de Conexão",
+        "Falha na comunicação com o servidor.",
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <View style={styles.container}>
       <Header
-        titulo={params.id ? "Editar Entrega" : "Novo Recebimento"}
+        titulo={params.id ? "Editar Cadastro" : "Novo Recebimento"}
         showBack={true}
       />
 
@@ -129,6 +170,7 @@ export default function CadastroEntrega() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.card}>
+            {/* FOTO ETIQUETA */}
             <TouchableOpacity style={styles.fotoContainer} onPress={tirarFoto}>
               {fotoBase64 ? (
                 <Image
@@ -143,12 +185,10 @@ export default function CadastroEntrega() {
               )}
             </TouchableOpacity>
 
-            <Text style={styles.labelSection}>
-              IDENTIFICAÇÃO DA PROPRIEDADE
-            </Text>
+            <Text style={styles.labelSection}>IDENTIFICAÇÃO</Text>
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 0.4 }]}>
-                <Text style={styles.label}>BLOCO/TORRE</Text>
+                <Text style={styles.label}>BLOCO</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Ex: A"
@@ -158,7 +198,7 @@ export default function CadastroEntrega() {
                 />
               </View>
               <View style={[styles.inputGroup, { flex: 0.6, marginLeft: 15 }]}>
-                <Text style={styles.label}>Nº UNIDADE</Text>
+                <Text style={styles.label}>UNIDADE</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Ex: 101"
@@ -169,37 +209,60 @@ export default function CadastroEntrega() {
               </View>
             </View>
 
-            {/* APLICAÇÃO DO NOVO COMPONENTE DE SELEÇÃO */}
             <SeletorMoradores
               condominioId={user?.condominio_id}
               bloco={bloco}
               unidade={unidade}
               selecionadoId={moradorIdReal}
               onSelecionar={(morador) => {
-                // 1. Vincula o ID para a API de salvamento
                 setMoradorIdReal(morador.usuario_id);
-
-                // 2. Preenche o campo de texto visualmente
-                setDestinatario(morador.Nome || (morador as any).nome);
-
-                // 3. Opcional: Feedback tátil ou log
-                console.log("🎯 Morador vinculado:", morador.usuario_id);
+                setDestinatario(morador.nome || morador.Nome);
               }}
             />
 
-            <Text style={styles.label}>NOME DO DESTINATÁRIO</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                placeholder="Selecione acima ou digite..."
-                value={destinatario}
-                onChangeText={setDestinatario}
-              />
-            </View>
+            <Text style={styles.label}>DESTINATÁRIO</Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#eee",
+                  marginBottom: 20,
+                  color: COLORS.textLight,
+                },
+              ]}
+              value={destinatario}
+              editable={false}
+              placeholder="Selecione um morador acima..."
+            />
 
             <View style={styles.divider} />
 
-            <Text style={styles.labelSection}>DADOS DA ENCOMENDA</Text>
+            <Text style={styles.labelSection}>DADOS DO VOLUME</Text>
+
+            <Text style={styles.label}>TIPO DE EMBALAGEM</Text>
+            <View style={styles.marketScroll}>
+              {["Pacote", "Caixa", "Carta", "Outros"].map((tipo) => (
+                <TouchableOpacity
+                  key={tipo}
+                  style={[
+                    styles.marketChip,
+                    tipoEmbalagem === tipo && styles.marketChipActive,
+                  ]}
+                  onPress={() => setTipoEmbalagem(tipo)}
+                >
+                  <Text
+                    style={[
+                      styles.marketText,
+                      tipoEmbalagem === tipo && styles.marketTextActive,
+                    ]}
+                  >
+                    {tipo}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <Text style={styles.label}>CÓDIGO DE RASTREIO</Text>
             <View style={styles.inputRow}>
               <TextInput
@@ -265,7 +328,7 @@ export default function CadastroEntrega() {
             <Text style={styles.label}>OBSERVAÇÕES</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
-              placeholder="Ex: Pacote amassado..."
+              placeholder="Notas adicionais..."
               multiline
               value={obs}
               onChangeText={setObs}
@@ -276,7 +339,7 @@ export default function CadastroEntrega() {
             style={[
               styles.btnSalvar,
               (params.id || urgente) && {
-                backgroundColor: urgente ? "#e74c3c" : COLORS.primary,
+                backgroundColor: urgente ? "#e74c3c" : "#27ae60",
               },
             ]}
             onPress={handleSalvar}
@@ -286,12 +349,21 @@ export default function CadastroEntrega() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.btnSalvarTexto}>
-                {params.id ? "ATUALIZAR CADASTRO" : "CONFIRMAR RECEBIMENTO"}
+                {params.id ? "SALVAR ALTERAÇÕES" : "CONFIRMAR RECEBIMENTO"}
               </Text>
             )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* RENDERIZAÇÃO DO MODAL DE FEEDBACK */}
+      <FeedbackModal
+        {...modalConfig}
+        onClose={() => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          if (modalConfig.type === "success") router.back();
+        }}
+      />
     </View>
   );
 }
