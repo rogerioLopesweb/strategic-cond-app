@@ -2,7 +2,7 @@ import { api } from "./api";
 
 /**
  * Service especializado na gestão de encomendas e logística de portaria.
- * Interface com o backend para operações de CRUD, Baixa Manual e QR Code.
+ * Interface com o backend para operações de CRUD, Baixa Manual, QR Code e Auditoria.
  */
 export const entregaService = {
   // ============================================================
@@ -11,7 +11,6 @@ export const entregaService = {
 
   /**
    * Registra a entrada de uma nova encomenda no sistema.
-   * Inclui campos como unidade, bloco, foto e flags de urgência.
    */
   registrar: async (dados: any) => {
     try {
@@ -27,12 +26,13 @@ export const entregaService = {
 
   /**
    * Lista entregas filtradas (unidade, bloco, status, urgência).
-   * Suporta paginação via meta-dados.
    */
   listar: async (filtros: any = { pagina: 1, limite: 10 }) => {
     try {
-      const response = await api.get("/api/entregas", { params: filtros });
-      // Retorna data (lista) e meta (paginação) conforme estrutura da API
+      // Ajustado para a rota correta definida no backend
+      const response = await api.get("/api/entregas", {
+        params: filtros,
+      });
       return {
         success: true,
         data: response.data.data,
@@ -47,24 +47,59 @@ export const entregaService = {
   },
 
   /**
-   * Atualiza dados de um cadastro existente.
-   * Utilizado para correções de unidade, bloco ou morador vinculado.
+   * Atualiza dados de um volume existente (Auditoria 360).
+   * Restrito a campos logísticos para preservar a identidade do lançamento.
    */
-  atualizar: async (id: string, dados: any) => {
+  atualizar: async (
+    id: string,
+    dados: {
+      tipo_embalagem?: string;
+      marketplace?: string;
+      retirada_urgente?: boolean;
+      observacoes?: string;
+      codigo_rastreio?: string; // Adicionado para permitir correção de rastreio
+    },
+  ) => {
     try {
+      // O backend agora injeta automaticamente data_atualizacao e operador_atualizacao_id via Token
       const response = await api.put(`/api/entregas/${id}`, dados);
-      return { success: true, data: response.data };
+
+      return {
+        success: true,
+        data: response.data.entrega, // Retornamos o objeto atualizado vindo do RETURNING do SQL
+      };
     } catch (error: any) {
+      // Tratamento assertivo de erro (ex: se o porteiro tentar editar uma entrega já entregue)
       return {
         success: false,
-        error: error.response?.data?.message || "Erro ao atualizar entrega",
+        error:
+          error.response?.data?.message ||
+          "Erro ao atualizar cadastro da encomenda",
       };
     }
   },
 
   /**
-   * Remove um registro de entrega.
-   * Nota: A API deve restringir a exclusão apenas para status 'recebido'.
+   * CANCELAMENTO LOGÍSTICO (Substitui a exclusão física)
+   * Envia o motivo do cancelamento para manter a trilha de auditoria.
+   */
+  cancelar: async (id: string, motivo: string) => {
+    try {
+      const response = await api.patch(`/api/entregas/${id}/cancelar`, {
+        motivo_cancelamento: motivo,
+      });
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.message || "Erro ao cancelar entrega",
+      };
+    }
+  },
+
+  /**
+   * Nota: Deletar físico deve ser evitado para fins de conformidade.
+   * Mantido apenas se houver necessidade de limpeza técnica de banco.
    */
   deletar: async (id: string) => {
     try {
@@ -84,7 +119,6 @@ export const entregaService = {
 
   /**
    * Registra a retirada física da encomenda informando o recebedor.
-   * Ideal para casos onde o morador não possui ou não apresentou o QR Code.
    */
   registrarSaidaManual: async (
     id: string,
@@ -107,7 +141,6 @@ export const entregaService = {
 
   /**
    * Realiza a baixa automatizada via validação de QR Code.
-   * Fluxo de maior agilidade e segurança para a portaria.
    */
   registrarSaidaQRCode: async (id: string) => {
     try {

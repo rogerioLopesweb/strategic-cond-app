@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -13,22 +12,20 @@ import {
   View,
 } from "react-native";
 
-// Importação de Componentes Customizados
-import { FeedbackModal } from "../../src/components/common/FeedbackModal";
-import { ModalBaixaManual } from "../../src/components/entregas/ModalBaixaManual";
-import { ModalDetalhesEntrega } from "../../src/components/entregas/ModalDetalhesEntrega";
-import Header from "../../src/components/Header";
-
-// Constantes e Serviços
-import { COLORS } from "../../src/constants/theme";
-import { entregaService } from "../../src/services/entregaService";
+import { FeedbackModal } from "@/src/components/common/FeedbackModal";
+import { ModalBaixaManual } from "@/src/components/entregas/ModalBaixaManual";
+import { ModalCancelarEntrega } from "@/src/components/entregas/ModalCancelarEntrega";
+import { ModalDetalhesEntrega } from "@/src/components/entregas/ModalDetalhesEntrega";
+import Header from "@/src/components/Header";
+import { COLORS } from "@/src/constants/theme";
+import { entregaService } from "@/src/services/entregaService";
 
 interface Entrega {
   id: string;
   codigo_rastreio: string;
   unidade: string;
   bloco: string;
-  status: "recebido" | "entregue" | "devolvida";
+  status: "recebido" | "entregue" | "devolvida" | "cancelada"; // Adicionado cancelada
   marketplace?: string;
   data_recebimento: string;
   url_foto_etiqueta?: string | null;
@@ -41,6 +38,10 @@ interface Entrega {
   operador_entrada_nome?: string;
   operador_saida_nome?: string;
   operador_saida_perfil?: string;
+  operador_cancelamento_nome?: string;
+  operador_cancelamento_perfil?: string;
+  motivo_cancelamento?: string;
+  data_cancelamento?: string;
   quem_retirou?: string;
   documento_retirou?: string;
   data_retirada?: string;
@@ -49,15 +50,13 @@ interface Entrega {
 export default function ListaEntregas() {
   const router = useRouter();
 
-  // Estados de Dados e Filtros
   const [entregas, setEntregas] = useState<Entrega[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [filtroUnidade, setFiltroUnidade] = useState("");
   const [filtroBloco, setFiltroBloco] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<string>("recebido");
   const [filtroUrgente, setFiltroUrgente] = useState(false);
-
-  // Estados de Modais
+  const [modalCancelarVisible, setModalCancelarVisible] = useState(false);
   const [entregaSelecionada, setEntregaSelecionada] = useState<Entrega | null>(
     null,
   );
@@ -96,19 +95,13 @@ export default function ListaEntregas() {
     carregarDados();
   }, [statusFiltro, filtroUnidade, filtroBloco, filtroUrgente]);
 
-  // Dentro do componente ListaEntregas
-
   const handleAbrirBaixaManual = () => {
-    // PASSO 1: Fecha o modal de detalhes primeiro
     setModalVisible(false);
-
-    // PASSO 2: Pequeno delay (opcional) para o modal de detalhes sair da tela
-    // e o de baixa entrar suavemente sem conflito de animação
     setTimeout(() => {
       setModalBaixaVisible(true);
     }, 300);
   };
-  // Ações de Negócio
+
   const handleConfirmarBaixa = async (dados: {
     quem_retirou: string;
     documento_retirou: string;
@@ -141,79 +134,106 @@ export default function ListaEntregas() {
     setCarregando(false);
   };
 
-  const handleExcluir = async () => {
-    if (!entregaSelecionada) return;
+  // Estados necessários
+  const [erroCancelamento, setErroCancelamento] = useState<string | null>(null);
+
+  const handleConfirmarCancelamento = async (motivo: string) => {
     setCarregando(true);
-    const res = await entregaService.deletar(entregaSelecionada.id);
+    setErroCancelamento(null); // Limpa erro anterior
+
+    const res = await entregaService.cancelar(entregaSelecionada.id, motivo);
+
     if (res.success) {
-      setModalVisible(false);
-      setModalFeedback({
-        visible: true,
-        type: "success",
-        title: "Removido",
-        message: "Registro excluído com sucesso.",
-      });
-      carregarDados();
+      // 1. FECHA o modal de cancelamento
+      setModalCancelarVisible(false);
+
+      // 2. ABRE o modal de sucesso (FeedbackModal)
+      setTimeout(() => {
+        setModalFeedback({
+          visible: true,
+          type: "success",
+          title: "Anulação Concluída",
+          message: "O registro foi invalidado com sucesso para auditoria.",
+        });
+        carregarDados(); // Recarrega a lista
+      }, 400); // Pequeno delay para a animação de saída/entrada ficar fluida
     } else {
-      setModalFeedback({
-        visible: true,
-        type: "error",
-        title: "Erro",
-        message: res.error,
-      });
+      // 3. MANTÉM o modal aberto e exibe o erro interno
+      setErroCancelamento(res.error);
     }
     setCarregando(false);
   };
 
-  // Renderizador de cada Card (Grid)
   const renderItem = ({ item }: { item: Entrega }) => {
     const isPendente = item.status === "recebido";
+    const isCancelada = item.status === "cancelada";
     const isUrgente = item.retirada_urgente === true;
-    const statusColor = isPendente ? "#f39c12" : COLORS.success;
+
+    // Lógica de cores dinâmica
+    let statusColor = COLORS.success;
+    if (isPendente) statusColor = "#f39c12";
+    if (isCancelada) statusColor = "#95a5a6"; // Cinza para neutro/desativado
+
+    const badgeBg = isPendente
+      ? "#fef5e7"
+      : isCancelada
+        ? "#f2f2f2"
+        : "#e8f5e9";
 
     return (
       <TouchableOpacity
         style={[
           styles.card,
           isPendente && { borderColor: statusColor, borderWidth: 0.5 },
-          isUrgente && {
-            borderColor: "#e74c3c",
-            borderWidth: 1.5,
-            backgroundColor: "#fffafa",
+          isCancelada && {
+            borderColor: "#ddd",
+            backgroundColor: "#fafafa",
+            opacity: 0.8,
           },
+          isUrgente &&
+            !isCancelada && {
+              borderColor: "#e74c3c",
+              borderWidth: 1.5,
+              backgroundColor: "#fffafa",
+            },
         ]}
         onPress={() => {
           setEntregaSelecionada(item);
           setModalVisible(true);
         }}
       >
-        {isUrgente && (
+        {isUrgente && !isCancelada && (
           <View style={styles.tagUrgente}>
             <Ionicons name="flash" size={10} color="#fff" />
             <Text style={styles.tagUrgenteTexto}>URGENTE</Text>
           </View>
         )}
         <View style={styles.cardHeader}>
-          <View
-            style={[
-              styles.unidadeBadge,
-              { backgroundColor: isPendente ? "#fef5e7" : "#e8f5e9" },
-            ]}
-          >
+          <View style={[styles.unidadeBadge, { backgroundColor: badgeBg }]}>
             <Text style={[styles.unidadeTextoDestaque, { color: statusColor }]}>
               {item.bloco}/{item.unidade}
             </Text>
           </View>
         </View>
         <View style={styles.infoBox}>
-          <Text style={styles.nomeMoradorCard} numberOfLines={1}>
+          <Text
+            style={[styles.nomeMoradorCard, isCancelada && { color: "#999" }]}
+            numberOfLines={1}
+          >
             {item.morador_nome || "N/I"}
           </Text>
           <Text style={styles.tipoEmbalagemCard}>
             {item.tipo_embalagem || "Pacote"}
           </Text>
-          <View style={styles.tipoBadge}>
-            <Text style={styles.tipoTextoCard}>
+          <View
+            style={[
+              styles.tipoBadge,
+              isCancelada && { backgroundColor: "#eee" },
+            ]}
+          >
+            <Text
+              style={[styles.tipoTextoCard, isCancelada && { color: "#888" }]}
+            >
               {item.morador_tipo?.toUpperCase() || "MORADOR"}
             </Text>
           </View>
@@ -221,12 +241,18 @@ export default function ListaEntregas() {
         <View
           style={[
             styles.statusContainer,
-            { borderTopColor: isPendente ? "#fdebd0" : "#d4efdf" },
+            {
+              borderTopColor: isCancelada
+                ? "#eee"
+                : isPendente
+                  ? "#fdebd0"
+                  : "#d4efdf",
+            },
           ]}
         >
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusLabel, { color: statusColor }]}>
-            {isPendente ? "PENDENTE" : "ENTREGUE"}
+            {isCancelada ? "CANCELADA" : isPendente ? "PENDENTE" : "ENTREGUE"}
           </Text>
         </View>
       </TouchableOpacity>
@@ -241,7 +267,6 @@ export default function ListaEntregas() {
         showBack={true}
       />
 
-      {/* Seção de Filtros */}
       <View style={styles.filtroWrapper}>
         <View style={styles.searchRow}>
           <View style={styles.inputContainer}>
@@ -271,15 +296,13 @@ export default function ListaEntregas() {
         </View>
 
         <View style={styles.filterBar}>
+          {/* Botão Urgentes */}
           <TouchableOpacity
             style={[
               styles.filterBtnUrgente,
               filtroUrgente && { backgroundColor: "#e74c3c" },
             ]}
-            onPress={() => {
-              // Diferente de antes, não vamos resetar o statusFiltro aqui
-              setFiltroUrgente(!filtroUrgente);
-            }}
+            onPress={() => setFiltroUrgente(!filtroUrgente)}
           >
             <Text
               style={[
@@ -287,36 +310,40 @@ export default function ListaEntregas() {
                 filtroUrgente && { color: "#fff" },
               ]}
             >
-              🔥 URGENTES
+              🔥 URG.
             </Text>
           </TouchableOpacity>
 
-          {["recebido", "entregue"].map((s) => (
+          {/* Botões de Status Dinâmicos */}
+          {[
+            { id: "recebido", label: "PENDENTES", color: "#f39c12" },
+            { id: "entregue", label: "ENTREGUES", color: COLORS.success },
+            { id: "cancelada", label: "CANCELADAS", color: "#95a5a6" },
+          ].map((s) => (
             <TouchableOpacity
-              key={s}
+              key={s.id}
               style={[
                 styles.filterBtn,
-                statusFiltro === s && {
-                  backgroundColor:
-                    s === "recebido" ? "#f39c12" : COLORS.success,
+                statusFiltro === s.id && {
+                  backgroundColor: s.color,
+                  borderColor: s.color,
                 },
               ]}
-              onPress={() => setStatusFiltro(s)}
+              onPress={() => setStatusFiltro(s.id)}
             >
               <Text
                 style={[
                   styles.filterText,
-                  statusFiltro === s && { color: "#fff" },
+                  statusFiltro === s.id && { color: "#fff" },
                 ]}
               >
-                {s === "recebido" ? "PENDENTES" : "ENTREGUES"}
+                {s.label}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Lista Principal */}
       <FlatList
         data={entregas}
         renderItem={renderItem}
@@ -330,7 +357,9 @@ export default function ListaEntregas() {
           !carregando ? (
             <View style={styles.emptyBox}>
               <Ionicons name="cube-outline" size={50} color="#ddd" />
-              <Text style={styles.emptyText}>Nenhuma encomenda por aqui.</Text>
+              <Text style={styles.emptyText}>
+                Nenhuma encomenda encontrada.
+              </Text>
             </View>
           ) : (
             <ActivityIndicator
@@ -342,7 +371,6 @@ export default function ListaEntregas() {
         }
       />
 
-      {/* Modais Componentizados */}
       <ModalDetalhesEntrega
         visible={modalVisible}
         entrega={entregaSelecionada}
@@ -356,10 +384,8 @@ export default function ListaEntregas() {
           });
         }}
         onExcluir={() => {
-          Alert.alert("Excluir", "Deseja remover este registro?", [
-            { text: "Não" },
-            { text: "Sim", onPress: handleExcluir, style: "destructive" },
-          ]);
+          setModalVisible(false);
+          setTimeout(() => setModalCancelarVisible(true), 300);
         }}
       />
 
@@ -370,6 +396,12 @@ export default function ListaEntregas() {
           setModalVisible(true);
         }}
         onConfirm={handleConfirmarBaixa}
+        loading={carregando}
+      />
+      <ModalCancelarEntrega
+        visible={modalCancelarVisible}
+        onClose={() => setModalCancelarVisible(false)}
+        onConfirm={handleConfirmarCancelamento}
         loading={carregando}
       />
 
@@ -414,7 +446,7 @@ const styles = StyleSheet.create({
     borderColor: "#eee",
   },
   filterBtnUrgente: {
-    flex: 0.8,
+    flex: 0.6,
     marginHorizontal: 2,
     paddingVertical: 8,
     backgroundColor: "#fff",
@@ -423,8 +455,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#e74c3c",
   },
-  filterText: { fontSize: 10, fontWeight: "bold", color: COLORS.textLight },
-  filterTextUrgente: { fontSize: 10, fontWeight: "bold", color: "#e74c3c" },
+  filterText: { fontSize: 8, fontWeight: "bold", color: COLORS.textLight },
+  filterTextUrgente: { fontSize: 8, fontWeight: "bold", color: "#e74c3c" },
   list: { padding: 6, paddingBottom: 50 },
   card: {
     flex: 1 / 3,

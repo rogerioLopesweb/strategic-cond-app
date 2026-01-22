@@ -1,13 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { COLORS } from "../../constants/theme";
 
@@ -29,6 +29,8 @@ export const ModalDetalhesEntrega = ({
   onExcluir,
 }: ModalDetalhesEntregaProps) => {
   if (!entrega) return null;
+
+  const isCancelada = entrega.status === "cancelada";
 
   const formatarDataFrase = (data: string | Date) => {
     if (!data) return "Data não disponível";
@@ -71,7 +73,9 @@ export const ModalDetalhesEntrega = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Detalhes da Encomenda</Text>
+            <Text style={styles.modalTitle}>
+              {isCancelada ? "Registro Cancelado" : "Detalhes da Encomenda"}
+            </Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons
                 name="close-circle"
@@ -82,15 +86,25 @@ export const ModalDetalhesEntrega = ({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Banner de Cancelamento */}
+            {isCancelada && (
+              <View style={styles.bannerCancelado}>
+                <Ionicons name="ban" size={20} color="#666" />
+                <Text style={styles.bannerCanceladoTexto}>
+                  ESTE LANÇAMENTO FOI ANULADO
+                </Text>
+              </View>
+            )}
+
             {entrega.url_foto_etiqueta && (
               <Image
                 source={{ uri: entrega.url_foto_etiqueta }}
-                style={styles.fotoEtiqueta}
+                style={[styles.fotoEtiqueta, isCancelada && { opacity: 0.6 }]}
                 resizeMode="cover"
               />
             )}
 
-            {entrega.retirada_urgente && (
+            {entrega.retirada_urgente && !isCancelada && (
               <View style={styles.urgenciaAlertaModal}>
                 <Ionicons name="alert-circle" size={20} color="#e74c3c" />
                 <Text style={styles.urgenciaAlertaTexto}>
@@ -101,7 +115,11 @@ export const ModalDetalhesEntrega = ({
 
             <View style={styles.sectionCard}>
               <Text style={styles.detailLabel}>DESTINATÁRIO</Text>
-              <Text style={styles.detailValue}>{entrega.morador_nome}</Text>
+              <Text
+                style={[styles.detailValue, isCancelada && { color: "#888" }]}
+              >
+                {entrega.morador_nome}
+              </Text>
               <Text style={styles.subDetail}>
                 {entrega.morador_tipo} • {entrega.morador_telefone}
               </Text>
@@ -110,7 +128,12 @@ export const ModalDetalhesEntrega = ({
             <View style={styles.detailGrid}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.detailLabel}>TIPO EMBALAGEM</Text>
-                <Text style={[styles.detailValue, { color: COLORS.primary }]}>
+                <Text
+                  style={[
+                    styles.detailValue,
+                    { color: isCancelada ? "#888" : COLORS.primary },
+                  ]}
+                >
                   {entrega.tipo_embalagem?.toUpperCase()}
                 </Text>
               </View>
@@ -122,8 +145,8 @@ export const ModalDetalhesEntrega = ({
               </View>
             </View>
 
-            {/* SEÇÃO DE OBSERVAÇÕES - NOVA */}
-            {entrega.observacoes && entrega.observacoes.trim() !== "" && (
+            {/* OBSERVAÇÕES DE ENTRADA */}
+            {entrega.observacoes && (
               <View style={styles.observacaoBox}>
                 <View style={styles.obsHeader}>
                   <Ionicons
@@ -131,7 +154,10 @@ export const ModalDetalhesEntrega = ({
                     size={14}
                     color={COLORS.textLight}
                   />
-                  <Text style={styles.detailLabel}> OBSERVAÇÕES INTERNAS</Text>
+                  <Text style={styles.detailLabel}>
+                    {" "}
+                    OBSERVAÇÕES DE ENTRADA
+                  </Text>
                 </View>
                 <Text style={styles.observacaoTexto}>
                   {entrega.observacoes}
@@ -139,21 +165,63 @@ export const ModalDetalhesEntrega = ({
               </View>
             )}
 
-            <View style={styles.auditContainer}>
-              <Text style={styles.auditTitle}>LOGÍSTICA E AUDITORIA</Text>
+            {/* SEÇÃO DE AUDITORIA COMPLETA */}
+            <View
+              style={[
+                styles.auditContainer,
+                isCancelada && styles.auditContainerCancelado,
+              ]}
+            >
+              <Text
+                style={[styles.auditTitle, isCancelada && { color: "#666" }]}
+              >
+                LOGÍSTICA E AUDITORIA
+              </Text>
+
+              {/* ENTRADA (Sempre exibe) */}
               <View style={styles.timelineItem}>
-                <Ionicons name="log-in" size={18} color={COLORS.primary} />
+                <Ionicons
+                  name="log-in"
+                  size={18}
+                  color={isCancelada ? "#999" : COLORS.primary}
+                />
                 <View style={styles.timelineContent}>
                   <Text style={styles.auditLabel}>RECEBIDO NA PORTARIA:</Text>
                   <Text style={styles.auditFrase}>
                     {formatarDataFrase(entrega.data_recebimento)}
                   </Text>
                   <Text style={styles.auditOperator}>
-                    Operador: {entrega.operador_entrada_nome || "Portaria"}
+                    Operador: {entrega.operador_entrada_nome}
                   </Text>
                 </View>
               </View>
 
+              {/* CANCELAMENTO (Se houver) */}
+              {isCancelada && (
+                <View style={[styles.timelineItem, styles.auditCancelBox]}>
+                  <Ionicons name="close-circle" size={18} color="#e74c3c" />
+                  <View style={styles.timelineContent}>
+                    <Text style={[styles.auditLabel, { color: "#e74c3c" }]}>
+                      MOTIVO DO CANCELAMENTO:
+                    </Text>
+                    <Text style={styles.motivoCancelamentoTexto}>
+                      {entrega.motivo_cancelamento}
+                    </Text>
+                    <Text style={[styles.auditLabel, { marginTop: 8 }]}>
+                      DATA DO CANCELAMENTO:
+                    </Text>
+                    <Text style={styles.auditFrase}>
+                      {formatarDataFrase(entrega.data_cancelamento)}
+                    </Text>
+                    <Text style={styles.auditOperator}>
+                      Por: {entrega.operador_cancelamento_nome} (
+                      {entrega.operador_cancelamento_perfil})
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* SAÍDA (Se houver) */}
               {entrega.status === "entregue" && (
                 <View style={[styles.timelineItem, styles.auditSuccessBox]}>
                   <Ionicons
@@ -168,21 +236,11 @@ export const ModalDetalhesEntrega = ({
                     <Text style={styles.auditFrase}>
                       {formatarDataFrase(entrega.data_entrega)}
                     </Text>
-                    <Text style={[styles.auditLabel, { marginTop: 8 }]}>
-                      QUEM LEVOU:
-                    </Text>
                     <Text style={styles.auditValueText}>
                       {entrega.quem_retirou}
                     </Text>
-                    <Text style={styles.subDetail}>
-                      Doc: {entrega.documento_retirou || "N/I"}
-                    </Text>
-                    <Text style={[styles.auditLabel, { marginTop: 8 }]}>
-                      BAIXA REALIZADA POR:
-                    </Text>
-                    <Text style={styles.auditValueText}>
-                      {entrega.operador_saida_nome} (
-                      {entrega.operador_saida_perfil || "Operador"})
+                    <Text style={styles.auditOperator}>
+                      Liberado por: {entrega.operador_saida_nome}
                     </Text>
                   </View>
                 </View>
@@ -190,6 +248,7 @@ export const ModalDetalhesEntrega = ({
             </View>
 
             <View style={styles.modalActions}>
+              {/* TRAVA: Só mostra ações se NÃO for cancelada e NÃO for entregue */}
               {entrega.status === "recebido" && (
                 <>
                   <TouchableOpacity
@@ -228,10 +287,13 @@ export const ModalDetalhesEntrega = ({
                     onPress={onExcluir}
                   >
                     <Ionicons name="trash-outline" size={20} color="#e74c3c" />
-                    <Text style={styles.btnExcluirTexto}>EXCLUIR REGISTRO</Text>
+                    <Text style={styles.btnExcluirTexto}>
+                      CANCELAR LANÇAMENTO
+                    </Text>
                   </TouchableOpacity>
                 </>
               )}
+
               <TouchableOpacity style={styles.btnFechar} onPress={onClose}>
                 <Text style={styles.btnFecharTexto}>VOLTAR</Text>
               </TouchableOpacity>
@@ -269,6 +331,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 15,
   },
+  bannerCancelado: {
+    backgroundColor: "#f2f2f2",
+    padding: 10,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 15,
+    justifyContent: "center",
+  },
+  bannerCanceladoTexto: {
+    color: "#666",
+    fontWeight: "bold",
+    marginLeft: 8,
+    fontSize: 12,
+  },
   urgenciaAlertaModal: {
     backgroundColor: "#fff5f5",
     borderColor: "#feb2b2",
@@ -280,7 +357,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   urgenciaAlertaTexto: { color: "#e74c3c", fontWeight: "bold", marginLeft: 8 },
-  sectionCard: { marginBottom: 12, paddingBottom: 6 },
+  sectionCard: { marginBottom: 12 },
   detailGrid: {
     flexDirection: "row",
     marginBottom: 12,
@@ -296,8 +373,6 @@ const styles = StyleSheet.create({
   },
   detailValue: { fontSize: 16, color: COLORS.textMain, fontWeight: "700" },
   subDetail: { fontSize: 11, color: COLORS.textLight, fontStyle: "italic" },
-
-  // Estilos da Seção de Observação
   observacaoBox: {
     backgroundColor: "#fff9db",
     borderRadius: 8,
@@ -313,7 +388,6 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     lineHeight: 18,
   },
-
   auditContainer: {
     marginTop: 5,
     padding: 15,
@@ -322,6 +396,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
+  auditContainerCancelado: { backgroundColor: "#fcfcfc", borderColor: "#ddd" },
   auditTitle: {
     fontSize: 11,
     fontWeight: "bold",
@@ -339,6 +414,18 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   auditOperator: { fontSize: 11, color: COLORS.textLight },
+  auditCancelBox: {
+    marginTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingTop: 15,
+  },
+  motivoCancelamentoTexto: {
+    fontSize: 14,
+    color: "#e74c3c",
+    fontWeight: "bold",
+    marginVertical: 4,
+  },
   auditValueText: { fontSize: 13, color: COLORS.textMain, fontWeight: "bold" },
   auditSuccessBox: {
     marginTop: 15,
