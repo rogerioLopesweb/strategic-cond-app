@@ -18,8 +18,8 @@ import { ModalCancelarEntrega } from "@/src/components/entregas/ModalCancelarEnt
 import { ModalDetalhesEntrega } from "@/src/components/entregas/ModalDetalhesEntrega";
 import Header from "@/src/components/Header";
 import { COLORS } from "@/src/constants/theme";
+import { useAuthContext } from "@/src/context/AuthContext";
 import { entregaService } from "@/src/services/entregaService";
-
 interface Entrega {
   id: string;
   codigo_rastreio: string;
@@ -48,6 +48,8 @@ interface Entrega {
 }
 
 export default function ListaEntregas() {
+  // 1. Consumir isMorador para controle de visibilidade
+  const { user, logout, isMorador } = useAuthContext();
   const router = useRouter();
 
   const [entregas, setEntregas] = useState<Entrega[]>([]);
@@ -262,9 +264,11 @@ export default function ListaEntregas() {
   return (
     <View style={styles.safeContainer}>
       <Header
-        titulo="Encomendas"
-        subtitulo="Gestão de Portaria"
-        showBack={true}
+        titulo="StrategicCond"
+        subtitulo={
+          user?.condominio ||
+          (isMorador ? "Minha Residência" : "Dashboard Portaria")
+        }
       />
 
       <View style={styles.filtroWrapper}>
@@ -285,6 +289,12 @@ export default function ListaEntregas() {
             />
           </View>
           <View style={[styles.inputContainer, { flex: 0.5, marginLeft: 10 }]}>
+            <Ionicons
+              name="business-outline"
+              size={16}
+              color={COLORS.textLight}
+              style={{ marginLeft: 10 }}
+            />
             <TextInput
               placeholder="Bloco"
               style={styles.input}

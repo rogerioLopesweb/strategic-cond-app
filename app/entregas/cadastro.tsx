@@ -1,3 +1,9 @@
+import { FeedbackModal } from "@/src/components/common/FeedbackModal";
+import { SeletorMoradores } from "@/src/components/entregas/SeletorMoradores";
+import Header from "@/src/components/Header";
+import { COLORS } from "@/src/constants/theme";
+import { useAuthContext } from "@/src/context/AuthContext";
+import { entregaService } from "@/src/services/entregaService";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,12 +21,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { FeedbackModal } from "../../src/components/common/FeedbackModal";
-import { SeletorMoradores } from "../../src/components/entregas/SeletorMoradores";
-import Header from "../../src/components/Header";
-import { COLORS } from "../../src/constants/theme";
-import { useAuthContext } from "../../src/context/AuthContext";
-import { entregaService } from "../../src/services/entregaService";
 
 export default function CadastroEntrega() {
   const router = useRouter();

@@ -1,3 +1,5 @@
+import { useAuthContext } from "@/src/context/AuthContext";
+import { useAuth } from "@/src/hooks/useAuth";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -9,8 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuthContext } from "../src/context/AuthContext";
-import { useAuth } from "../src/hooks/useAuth";
 
 export default function Login() {
   const router = useRouter();
@@ -40,7 +40,8 @@ export default function Login() {
            Se a API retornar { user: { nome: "..." } }, você deve usar result.user.nome
         */
         await loginSession({
-          user_id: result.usuario.id, // Garante compatibilidade se o campo for 'id'
+          id: result.usuario.id, // Adicionado para satisfazer a interface UserData
+          user_id: result.usuario.id, // Mantido para sua compatibilidade interna
           nome: result.usuario.nome,
           cpf: result.usuario.cpf,
           perfil: result.usuario.perfil,

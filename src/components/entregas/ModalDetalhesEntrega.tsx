@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg"; // Importação do QR Code
 import { COLORS } from "../../constants/theme";
+import { useAuthContext } from "../../context/AuthContext"; // Importe seu hook de Auth
 
 interface ModalDetalhesEntregaProps {
   visible: boolean;
@@ -28,6 +30,7 @@ export const ModalDetalhesEntrega = ({
   onEditar,
   onExcluir,
 }: ModalDetalhesEntregaProps) => {
+  const { isMorador, user } = useAuthContext(); // Captura o usuário logado
   if (!entrega) return null;
 
   const isCancelada = entrega.status === "cancelada";
@@ -59,13 +62,7 @@ export const ModalDetalhesEntrega = ({
       "Dezembro",
     ];
 
-    const diaSemana = diasSemana[d.getDay()];
-    const diaMes = d.getDate();
-    const mes = meses[d.getMonth()];
-    const hora = d.getHours().toString().padStart(2, "0");
-    const minuto = d.getMinutes().toString().padStart(2, "0");
-
-    return `${diaSemana}, ${diaMes} de ${mes} às ${hora}:${minuto}h`;
+    return `${diasSemana[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} às ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}h`;
   };
 
   return (
@@ -74,7 +71,11 @@ export const ModalDetalhesEntrega = ({
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {isCancelada ? "Registro Cancelado" : "Detalhes da Encomenda"}
+              {isCancelada
+                ? "Registro Cancelado"
+                : isMorador
+                  ? "Minha Encomenda"
+                  : "Detalhes da Encomenda"}
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons
@@ -96,6 +97,7 @@ export const ModalDetalhesEntrega = ({
               </View>
             )}
 
+            {/* Foto da Etiqueta */}
             {entrega.url_foto_etiqueta && (
               <Image
                 source={{ uri: entrega.url_foto_etiqueta }}
@@ -104,15 +106,25 @@ export const ModalDetalhesEntrega = ({
               />
             )}
 
-            {entrega.retirada_urgente && !isCancelada && (
-              <View style={styles.urgenciaAlertaModal}>
-                <Ionicons name="alert-circle" size={20} color="#e74c3c" />
-                <Text style={styles.urgenciaAlertaTexto}>
-                  ESTA ENCOMENDA É URGENTE
+            {/* SEÇÃO QR CODE - EXCLUSIVA PARA MORADOR (Se disponível) */}
+            {isMorador && entrega.status === "recebido" && (
+              <View style={styles.qrContainer}>
+                <Text style={styles.qrTitle}>QR CODE DE RETIRADA</Text>
+                <View style={styles.qrWrapper}>
+                  <QRCode
+                    value={entrega.id} // UUID da entrega para o porteiro ler
+                    size={180}
+                    color={COLORS.primary}
+                    backgroundColor="white"
+                  />
+                </View>
+                <Text style={styles.qrSub}>
+                  Apresente este código na portaria
                 </Text>
               </View>
             )}
 
+            {/* Dados do Destinatário */}
             <View style={styles.sectionCard}>
               <Text style={styles.detailLabel}>DESTINATÁRIO</Text>
               <Text
@@ -120,9 +132,11 @@ export const ModalDetalhesEntrega = ({
               >
                 {entrega.morador_nome}
               </Text>
-              <Text style={styles.subDetail}>
-                {entrega.morador_tipo} • {entrega.morador_telefone}
-              </Text>
+              {!isMorador && (
+                <Text style={styles.subDetail}>
+                  {entrega.morador_tipo} • {entrega.morador_telefone}
+                </Text>
+              )}
             </View>
 
             <View style={styles.detailGrid}>
@@ -145,27 +159,35 @@ export const ModalDetalhesEntrega = ({
               </View>
             </View>
 
-            {/* OBSERVAÇÕES DE ENTRADA */}
-            {entrega.observacoes && (
-              <View style={styles.observacaoBox}>
-                <View style={styles.obsHeader}>
-                  <Ionicons
-                    name="document-text-outline"
-                    size={14}
-                    color={COLORS.textLight}
-                  />
-                  <Text style={styles.detailLabel}>
-                    {" "}
-                    OBSERVAÇÕES DE ENTRADA
-                  </Text>
-                </View>
-                <Text style={styles.observacaoTexto}>
-                  {entrega.observacoes}
-                </Text>
+            {/* CÓDIGO DE RASTREIO */}
+            <View style={styles.sectionCard}>
+              <View style={styles.obsHeader}>
+                <Ionicons
+                  name="barcode-outline"
+                  size={14}
+                  color={COLORS.textLight}
+                />
+                <Text style={styles.detailLabel}> CÓDIGO DE RASTREIO</Text>
               </View>
-            )}
+              <Text
+                style={[
+                  styles.detailValue,
+                  {
+                    fontSize: 14,
+                    color: entrega.codigo_rastreio
+                      ? COLORS.textMain
+                      : COLORS.textLight,
+                  },
+                ]}
+              >
+                {entrega.codigo_rastreio &&
+                entrega.codigo_rastreio.trim() !== ""
+                  ? entrega.codigo_rastreio
+                  : "Não informado"}
+              </Text>
+            </View>
 
-            {/* SEÇÃO DE AUDITORIA COMPLETA */}
+            {/* Auditoria (Simplificada para Morador) */}
             <View
               style={[
                 styles.auditContainer,
@@ -175,10 +197,8 @@ export const ModalDetalhesEntrega = ({
               <Text
                 style={[styles.auditTitle, isCancelada && { color: "#666" }]}
               >
-                LOGÍSTICA E AUDITORIA
+                STATUS E LOGÍSTICA
               </Text>
-
-              {/* ENTRADA (Sempre exibe) */}
               <View style={styles.timelineItem}>
                 <Ionicons
                   name="log-in"
@@ -186,70 +206,34 @@ export const ModalDetalhesEntrega = ({
                   color={isCancelada ? "#999" : COLORS.primary}
                 />
                 <View style={styles.timelineContent}>
-                  <Text style={styles.auditLabel}>RECEBIDO NA PORTARIA:</Text>
+                  <Text style={styles.auditLabel}>RECEBIDO EM:</Text>
                   <Text style={styles.auditFrase}>
                     {formatarDataFrase(entrega.data_recebimento)}
-                  </Text>
-                  <Text style={styles.auditOperator}>
-                    Operador: {entrega.operador_entrada_nome}
                   </Text>
                 </View>
               </View>
 
-              {/* CANCELAMENTO (Se houver) */}
-              {isCancelada && (
-                <View style={[styles.timelineItem, styles.auditCancelBox]}>
-                  <Ionicons name="close-circle" size={18} color="#e74c3c" />
-                  <View style={styles.timelineContent}>
-                    <Text style={[styles.auditLabel, { color: "#e74c3c" }]}>
-                      MOTIVO DO CANCELAMENTO:
-                    </Text>
-                    <Text style={styles.motivoCancelamentoTexto}>
-                      {entrega.motivo_cancelamento}
-                    </Text>
-                    <Text style={[styles.auditLabel, { marginTop: 8 }]}>
-                      DATA DO CANCELAMENTO:
-                    </Text>
-                    <Text style={styles.auditFrase}>
-                      {formatarDataFrase(entrega.data_cancelamento)}
-                    </Text>
-                    <Text style={styles.auditOperator}>
-                      Por: {entrega.operador_cancelamento_nome} (
-                      {entrega.operador_cancelamento_perfil})
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* SAÍDA (Se houver) */}
               {entrega.status === "entregue" && (
-                <View style={[styles.timelineItem, styles.auditSuccessBox]}>
+                <View style={[styles.timelineItem, { marginTop: 10 }]}>
                   <Ionicons
                     name="checkmark-circle"
                     size={18}
                     color={COLORS.success}
                   />
                   <View style={styles.timelineContent}>
-                    <Text style={styles.auditLabel}>
-                      RETIRADO PELO CLIENTE EM:
-                    </Text>
+                    <Text style={styles.auditLabel}>RETIRADO EM:</Text>
                     <Text style={styles.auditFrase}>
                       {formatarDataFrase(entrega.data_entrega)}
-                    </Text>
-                    <Text style={styles.auditValueText}>
-                      {entrega.quem_retirou}
-                    </Text>
-                    <Text style={styles.auditOperator}>
-                      Liberado por: {entrega.operador_saida_nome}
                     </Text>
                   </View>
                 </View>
               )}
             </View>
 
+            {/* Ações do Modal */}
             <View style={styles.modalActions}>
-              {/* TRAVA: Só mostra ações se NÃO for cancelada e NÃO for entregue */}
-              {entrega.status === "recebido" && (
+              {/* Só mostra ações de gestão se NÃO for morador e estiver pendente */}
+              {!isMorador && entrega.status === "recebido" && (
                 <>
                   <TouchableOpacity
                     style={[
@@ -306,6 +290,38 @@ export const ModalDetalhesEntrega = ({
 };
 
 const styles = StyleSheet.create({
+  qrContainer: {
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
+    padding: 20,
+    borderRadius: 15,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+  },
+  qrTitle: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: COLORS.primary,
+    marginBottom: 15,
+    letterSpacing: 1,
+  },
+  qrWrapper: {
+    padding: 10,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  qrSub: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    marginTop: 10,
+    fontStyle: "italic",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",

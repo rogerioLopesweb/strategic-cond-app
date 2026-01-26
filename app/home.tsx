@@ -1,3 +1,6 @@
+import { ScannerModal } from "@/src/components/entregas/ScannerModal";
+import Header from "@/src/components/Header";
+import { COLORS } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -8,12 +11,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import ScannerModal from "../src/components//entregas/ScannerModal";
-import Header from "../src/components/Header";
-import { COLORS } from "../src/constants/theme";
 
-// 1. Importar o contexto para acessar o usuário e a função de logout
-import { useAuthContext } from "../src/context/AuthContext";
+// Importação do contexto revisada
+import { useAuthContext } from "@/src/context/AuthContext";
 
 interface BotaoAcaoProps {
   titulo: string;
@@ -64,66 +64,81 @@ export default function Home() {
   const router = useRouter();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
 
-  // 2. Consumir a sessão e a função de logout do contexto
-  const { user, logout } = useAuthContext();
+  // 1. Consumir isMorador para controle de visibilidade
+  const { user, logout, isMorador } = useAuthContext();
 
   const handleSignOut = async () => {
-    await logout(); // Limpa o AsyncStorage e a memória
-    router.replace("/"); // Redireciona para o Login
+    await logout();
+    router.replace("/");
   };
 
   return (
     <View style={styles.container}>
-      {/* 3. REVISÃO DO HEADER: 
-          Removido o userName fixo. O Header agora buscará user.nome automaticamente do contexto.
-      */}
       <Header
         titulo="StrategicCond"
-        subtitulo={user?.condominio || "Dashboard Portaria"}
+        subtitulo={
+          user?.condominio ||
+          (isMorador ? "Minha Residência" : "Dashboard Portaria")
+        }
       />
 
       <ScrollView contentContainerStyle={styles.menuPrincipal}>
-        <Text style={styles.labelSessao}>SERVIÇOS DISPONÍVEIS</Text>
+        <Text style={styles.labelSessao}>
+          {isMorador ? "MINHA ÁREA" : "SERVIÇOS DISPONÍVEIS"}
+        </Text>
 
-        <BotaoAcao
-          titulo="Cadastrar Entrega"
-          subTitulo="Registrar novo pacote recebido"
-          icone="cube-outline"
-          cor={COLORS.secondary}
-          rota="/entregas/cadastro"
-        />
+        {/* 2. BOTÃO CADASTRAR: Escondido para Morador */}
+        {!isMorador && (
+          <BotaoAcao
+            titulo="Cadastrar Entrega"
+            subTitulo="Registrar novo pacote recebido"
+            icone="cube-outline"
+            cor={COLORS.secondary}
+            rota="/entregas/cadastro"
+          />
+        )}
 
+        {/* 3. LISTA DE ENCOMENDAS: Visível para ambos */}
         <BotaoAcao
-          titulo="Lista de Encomendas"
-          subTitulo="Ver, filtrar e gerenciar entregas"
+          titulo={isMorador ? "Minhas Encomendas" : "Lista de Encomendas"}
+          subTitulo={
+            isMorador
+              ? "Veja o que chegou para você"
+              : "Ver, filtrar e gerenciar entregas"
+          }
           icone="list-outline"
           cor={COLORS.primary}
           rota="/entregas/lista-entregas"
         />
 
-        <BotaoAcao
-          titulo="Ler QR Code"
-          subTitulo="Baixa rápida de saída de pacotes"
-          icone="qr-code-outline"
-          cor="#e67e22"
-          onPress={() => setIsScannerVisible(true)}
-        />
+        {/* 4. LER QR CODE: Escondido para Morador */}
+        {!isMorador && (
+          <BotaoAcao
+            titulo="Ler QR Code"
+            subTitulo="Baixa rápida de saída de pacotes"
+            icone="qr-code-outline"
+            cor="#e67e22"
+            onPress={() => setIsScannerVisible(true)}
+          />
+        )}
 
         <View style={styles.divider} />
         <Text style={styles.labelSessao}>SISTEMA</Text>
 
-        {/* 4. BOTÃO SAIR: Agora limpa a sessão antes de navegar */}
         <TouchableOpacity style={styles.botaoSair} onPress={handleSignOut}>
           <Ionicons name="log-out-outline" size={20} color="#e74c3c" />
           <Text style={styles.textoSair}>Sair do Aplicativo</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <ScannerModal
-        visible={isScannerVisible}
-        onClose={() => setIsScannerVisible(false)}
-        titulo="Saída de Encomenda"
-      />
+      {/* 5. MODAL SCANNER: Só faz sentido existir se não for morador */}
+      {!isMorador && (
+        <ScannerModal
+          visible={isScannerVisible}
+          onClose={() => setIsScannerVisible(false)}
+          titulo="Saída de Encomenda"
+        />
+      )}
     </View>
   );
 }

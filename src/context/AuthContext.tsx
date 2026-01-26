@@ -6,19 +6,20 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { notificationService } from "../services/notificationService";
 
-// Chaves consistentes com o que o Interceptor do Axios vai procurar
 const USER_KEY = "@StrategicCond:user";
 const TOKEN_KEY = "@StrategicCond:token";
 
-interface UserData {
+export interface UserData {
+  id: string;
   user_id: string;
   nome: string;
   cpf: string;
   perfil: string;
   condominio: string;
   condominio_id: string;
-  token?: string; // Token que vem da API no login
+  token?: string;
 }
 
 interface AuthContextData {
@@ -27,6 +28,8 @@ interface AuthContextData {
   logout: () => Promise<void>;
   loading: boolean;
   signed: boolean;
+  // NOVIDADE: Helper para simplificar a lógica nas telas
+  isMorador: boolean;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -37,12 +40,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper para identificar se o perfil logado atua como morador
+  // Aceita: 'Proprietário', 'Inquilino', 'Morador', etc.
+  const checkIsMorador = useCallback(() => {
+    if (!user?.perfil) return false;
+    const perfil = user.perfil.toLowerCase();
+    const perfisMorador = [
+      "morador",
+      "proprietário",
+      "proprietario",
+      "inquilino",
+      "dependente",
+    ];
+    return perfisMorador.includes(perfil);
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      handlePushRegistration();
+    }
+  }, [user]);
+
+  const handlePushRegistration = async () => {
+    try {
+      const token = await notificationService.registerForPushNotifications();
+      if (token) {
+        await notificationService.updateServerToken(token);
+      }
+    } catch (error) {
+      console.error("Erro no fluxo de registro de push:", error);
+    }
+  };
+
   useEffect(() => {
     async function loadStorageData() {
       try {
         const storageUser = await AsyncStorage.getItem(USER_KEY);
-        // O token é gerenciado pelo Interceptor no disco,
-        // mas o objeto User mantém a sessão ativa no React.
         if (storageUser) {
           setUser(JSON.parse(storageUser));
         }
@@ -57,16 +90,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const loginSession = useCallback(async (data: UserData) => {
     try {
-      const { token, ...userData } = data; // Separa o token do restante dos dados
-
+      const { token, ...userData } = data;
       setUser(userData as UserData);
 
-      // Salva o Token em uma chave limpa para o Axios Interceptor
       if (token) {
         await AsyncStorage.setItem(TOKEN_KEY, token);
       }
-
-      // Salva os dados do usuário
       await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
     } catch (error) {
       console.error("Erro ao salvar sessão:", error);
@@ -75,7 +104,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const logout = useCallback(async () => {
     try {
-      // Remove tudo para garantir limpeza total
       await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY]);
       setUser(null);
     } catch (error) {
@@ -91,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         logout,
         loading,
         signed: !!user,
+        isMorador: checkIsMorador(), // Disponibiliza a validação globalmente
       }}
     >
       {children}

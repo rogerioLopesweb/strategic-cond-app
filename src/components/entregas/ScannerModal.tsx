@@ -1,135 +1,252 @@
+import { COLORS } from "@/src/constants/theme";
+import { entregaService } from "@/src/services/entregaService";
 import { Ionicons } from "@expo/vector-icons";
-import React from "react";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Modal,
-  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../../constants/theme";
+import { FeedbackModal } from "../common/FeedbackModal";
 
 interface ScannerModalProps {
   visible: boolean;
   onClose: () => void;
-  titulo?: string;
+  titulo: string;
 }
 
-export default function ScannerModal({
+export const ScannerModal = ({
   visible,
   onClose,
-  titulo = "Escanear QR Code",
-}: ScannerModalProps) {
+  titulo,
+}: ScannerModalProps) => {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scanned, setScanned] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Estado para feedback após o scan
+  const [modalFeedback, setModalFeedback] = useState({
+    visible: false,
+    type: "success" as "success" | "error",
+    title: "",
+    message: "",
+  });
+
+  // Solicita permissão ao abrir se ainda não tiver
+  React.useEffect(() => {
+    if (visible && (!permission || !permission.granted)) {
+      requestPermission();
+    }
+    if (visible) setScanned(false); // Reseta o estado ao abrir
+  }, [visible]);
+
+  const handleBarCodeScanned = async ({ data }: { data: string }) => {
+    if (scanned || loading) return;
+
+    setScanned(true);
+    setLoading(true);
+
+    try {
+      // data deve ser o UUID da entrega contido no QR Code
+      const res = await entregaService.registrarSaidaQRCode(data);
+
+      if (res.success) {
+        setModalFeedback({
+          visible: true,
+          type: "success",
+          title: "Baixa Concluída!",
+          message: "A encomenda foi entregue com sucesso via QR Code.",
+        });
+      } else {
+        setModalFeedback({
+          visible: true,
+          type: "error",
+          title: "Erro na Leitura",
+          message: res.error || "Código inválido ou entrega já realizada.",
+        });
+      }
+    } catch (error) {
+      setModalFeedback({
+        visible: true,
+        type: "error",
+        title: "Falha Técnica",
+        message: "Não foi possível comunicar com o servidor.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCloseFeedback = () => {
+    setModalFeedback({ ...modalFeedback, visible: false });
+    if (modalFeedback.type === "success") {
+      onClose(); // Se deu certo, fecha o scanner também
+    } else {
+      setScanned(false); // Se deu erro, permite escanear novamente
+    }
+  };
+
+  if (!permission?.granted) {
+    return (
+      <Modal visible={visible} animationType="slide">
+        <View style={styles.permissionContainer}>
+          <Ionicons name="camera-outline" size={64} color={COLORS.primary} />
+          <Text style={styles.permissionText}>
+            O StrategicCond precisa de acesso à câmera para ler o QR Code de
+            saída.
+          </Text>
+          <TouchableOpacity
+            style={styles.btnPermissao}
+            onPress={requestPermission}
+          >
+            <Text style={styles.btnPermissaoTexto}>ATIVAR CÂMERA</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={{ marginTop: 20 }}>
+            <Text style={{ color: COLORS.textLight }}>Cancelar</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
+  }
+
   return (
-    <Modal
-      animationType="slide"
-      transparent={false}
-      visible={visible}
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="fade" transparent={false}>
       <View style={styles.container}>
-        {/* Header com padding superior manual para compensar o SafeAreaView */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <Ionicons name="close" size={30} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.titulo}>{titulo}</Text>
-          <View style={{ width: 30 }} />
-        </View>
-
-        {/* Área da Câmera Simulada */}
-        <View style={styles.cameraPlaceholder}>
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+          barcodeScannerSettings={{
+            barcodeTypes: ["qr"],
+          }}
+        >
+          {/* OVERLAY DO SCANNER */}
           <View style={styles.overlay}>
-            <View style={styles.unfocusedContainer} />
-            <View style={styles.middleRow}>
-              <View style={styles.unfocusedContainer} />
-              <View style={styles.focusedContainer}>
-                <View style={[styles.corner, styles.topLeft]} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-              </View>
-              <View style={styles.unfocusedContainer} />
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>{titulo}</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeIcon}>
+                <Ionicons name="close-circle" size={32} color="#fff" />
+              </TouchableOpacity>
             </View>
-            <View style={styles.unfocusedContainer} />
+
+            <View style={styles.targetContainer}>
+              <View style={[styles.corner, styles.topRight]} />
+              <View style={[styles.corner, styles.topLeft]} />
+              <View style={[styles.corner, styles.bottomRight]} />
+              <View style={[styles.corner, styles.bottomLeft]} />
+
+              {loading && <ActivityIndicator size="large" color="#fff" />}
+            </View>
+
+            <Text style={styles.instruction}>
+              Aponte para o QR Code do morador
+            </Text>
           </View>
+        </CameraView>
 
-          <Text style={styles.instrucao}>Aponte para o código do morador</Text>
-        </View>
-
-        {/* Rodapé com controles */}
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.actionBtn}>
-            <Ionicons name="flash-outline" size={24} color="#fff" />
-            <Text style={styles.actionText}>Lanterna</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionBtn}>
-            <Ionicons name="images-outline" size={24} color="#fff" />
-            <Text style={styles.actionText}>Galeria</Text>
-          </TouchableOpacity>
-        </View>
+        <FeedbackModal
+          visible={modalFeedback.visible}
+          type={modalFeedback.type}
+          title={modalFeedback.title}
+          message={modalFeedback.message}
+          onClose={handleCloseFeedback}
+        />
       </View>
     </Modal>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#000" },
+  permissionContainer: {
     flex: 1,
-    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
+    backgroundColor: "#fff",
+  },
+  permissionText: {
+    textAlign: "center",
+    fontSize: 16,
+    color: COLORS.textMain,
+    marginVertical: 20,
+    lineHeight: 24,
+  },
+  btnPermissao: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 12,
+  },
+  btnPermissaoTexto: { color: "#fff", fontWeight: "bold" },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 60,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    width: "100%",
     paddingHorizontal: 20,
-    // Ajuste para não colidir com o topo do celular
-    paddingTop: Platform.OS === "ios" ? 50 : 20,
-    paddingBottom: 20,
-    backgroundColor: "rgba(0,0,0,0.8)",
   },
-  closeBtn: { padding: 5 },
-  titulo: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  cameraPlaceholder: {
-    flex: 1,
+  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  closeIcon: { position: "absolute", right: 20 },
+  targetContainer: {
+    width: 250,
+    height: 250,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1c1c1c",
   },
-  instrucao: {
+  instruction: {
     color: "#fff",
-    position: "absolute",
-    bottom: 50,
     fontSize: 14,
-    fontWeight: "500",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 15,
-    paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 20,
+    overflow: "hidden",
   },
-  overlay: { flex: 1, width: "100%" },
-  unfocusedContainer: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
-  middleRow: { flexDirection: "row", height: 250 },
-  focusedContainer: { width: 250, position: "relative" },
+  // Cantoneiras do alvo
   corner: {
     position: "absolute",
     width: 40,
     height: 40,
-    borderColor: COLORS.secondary,
+    borderColor: COLORS.success,
     borderWidth: 4,
   },
-  topLeft: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0 },
-  topRight: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0 },
-  bottomLeft: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0 },
-  bottomRight: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0 },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingVertical: 30,
-    backgroundColor: "rgba(0,0,0,0.9)",
+  topRight: {
+    top: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderBottomWidth: 0,
+    borderTopRightRadius: 20,
   },
-  actionBtn: { alignItems: "center" },
-  actionText: { color: "#fff", fontSize: 12, marginTop: 5 },
+  topLeft: {
+    top: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
+    borderTopLeftRadius: 20,
+  },
+  bottomRight: {
+    bottom: 0,
+    right: 0,
+    borderLeftWidth: 0,
+    borderTopWidth: 0,
+    borderBottomRightRadius: 20,
+  },
+  bottomLeft: {
+    bottom: 0,
+    left: 0,
+    borderRightWidth: 0,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: 20,
+  },
 });

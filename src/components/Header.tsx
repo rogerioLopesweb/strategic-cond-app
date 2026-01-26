@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   userInfo: {
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: "rgba(11, 20, 86, 0.22)",
     paddingVertical: 4,
     paddingHorizontal: 12,
     borderRadius: 12,
