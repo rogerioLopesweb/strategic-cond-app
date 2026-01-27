@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import {
   Modal,
+  Platform,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -15,10 +16,8 @@ interface SideMenuProps {
   onClose: () => void;
   onLogout: () => void;
   userData: {
-    condominio: string;
-    nome: string;
-    cpf: string;
-    perfil: string;
+    user: any;
+    condominioAtivo: any;
   };
 }
 
@@ -28,8 +27,10 @@ export default function SideMenu({
   onLogout,
   userData,
 }: SideMenuProps) {
-  // Caso os dados ainda não existam (proteção)
-  if (!userData) return null;
+  // Verificação de segurança para não quebrar se os dados demorarem a carregar
+  if (!userData || !userData.user) return null;
+
+  const { user, condominioAtivo } = userData;
 
   return (
     <Modal
@@ -47,26 +48,32 @@ export default function SideMenu({
             </TouchableOpacity>
           </View>
 
-          {/* Informações do Usuário da Sessão */}
+          {/* Informações do Usuário */}
           <View style={styles.content}>
             <View style={styles.avatarCircle}>
               <Ionicons name="person" size={40} color={COLORS.primary} />
             </View>
 
             <Text style={styles.label}>Condomínio</Text>
-            <Text style={styles.value}>{userData.condominio}</Text>
+            <Text style={styles.value}>
+              {condominioAtivo?.nome || "Não selecionado"}
+            </Text>
 
             <View style={styles.divider} />
 
             <Text style={styles.label}>Nome do Usuário</Text>
-            <Text style={styles.value}>{userData.nome}</Text>
+            <Text style={styles.value}>
+              {user?.nome || user?.nome_completo || "Usuário"}
+            </Text>
 
             <Text style={styles.label}>Documento (CPF)</Text>
-            <Text style={styles.value}>{userData.cpf}</Text>
+            <Text style={styles.value}>{user?.cpf || "---"}</Text>
 
             <Text style={styles.label}>Nível de Acesso</Text>
             <View style={styles.badge}>
-              <Text style={styles.perfilText}>{userData.perfil}</Text>
+              <Text style={styles.perfilText}>
+                {condominioAtivo?.perfil || user?.cargo || "Colaborador"}
+              </Text>
             </View>
           </View>
 
@@ -87,14 +94,16 @@ export default function SideMenu({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)", // Um pouco mais escuro para foco total no menu
+    backgroundColor: "rgba(0,0,0,0.6)",
     flexDirection: "row",
   },
   menuContainer: {
     width: "80%",
+    maxWidth: Platform.OS === "web" ? 400 : 320,
     backgroundColor: "#fff",
     height: "100%",
-    padding: 25,
+    padding: 30,
+    paddingLeft: 50,
     shadowColor: "#000",
     shadowOffset: { width: 5, height: 0 },
     shadowOpacity: 0.2,
@@ -105,9 +114,13 @@ const styles = StyleSheet.create({
   headerMenu: {
     alignItems: "flex-end",
     marginBottom: 10,
+    marginTop: Platform.OS === "web" ? 10 : 0,
   },
   closeBtn: { padding: 5 },
-  content: { flex: 1 },
+  content: {
+    flex: 1,
+    paddingHorizontal: 5,
+  },
   avatarCircle: {
     width: 80,
     height: 80,
@@ -123,28 +136,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#95a5a6",
     fontWeight: "bold",
-    marginTop: 18,
+    marginTop: 22,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   value: {
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.primary,
     fontWeight: "600",
-    marginTop: 2,
+    marginTop: 4,
   },
   divider: {
     height: 1,
     backgroundColor: "#ecf0f1",
-    marginVertical: 15,
+    marginVertical: 20,
   },
   badge: {
-    backgroundColor: COLORS.primary, // Usando a cor primária para o badge
+    backgroundColor: COLORS.primary,
     alignSelf: "flex-start",
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 6,
-    marginTop: 8,
+    marginTop: 10,
   },
   perfilText: {
     color: "#fff",
@@ -157,8 +170,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderTopWidth: 1,
     borderColor: "#ecf0f1",
-    paddingTop: 20,
-    marginBottom: 20,
+    paddingTop: 25,
+    marginBottom: Platform.OS === "web" ? 30 : 20,
   },
   logoutText: {
     color: "#e74c3c",

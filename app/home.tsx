@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,7 +13,6 @@ import {
   View,
 } from "react-native";
 
-// Importação do contexto revisada
 import { useAuthContext } from "@/src/context/AuthContext";
 
 interface BotaoAcaoProps {
@@ -63,9 +63,7 @@ const BotaoAcao = ({
 export default function Home() {
   const router = useRouter();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
-
-  // 1. Consumir isMorador para controle de visibilidade
-  const { user, logout, isMorador } = useAuthContext();
+  const { condominioAtivo, user, logout, isMorador } = useAuthContext();
 
   const handleSignOut = async () => {
     await logout();
@@ -74,64 +72,71 @@ export default function Home() {
 
   return (
     <View style={styles.container}>
+      {/* O Header fica fora do wrapper para ocupar 100% da largura na Web */}
       <Header
-        titulo="StrategicCond"
-        subtitulo={
-          user?.condominio ||
-          (isMorador ? "Minha Residência" : "Dashboard Portaria")
-        }
+        tituloPagina="Painel de Controle" // Ou "Painel de Controle"
+        breadcrumb={[]} // Vazio pois é a raiz
+        showBack={false} // Na Home não faz sentido ter botão voltar
       />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* WRAPPER RESPONSIVO: Limita o conteúdo a 850px e centraliza */}
+        <View style={styles.contentWrapper}>
+          <Text style={styles.labelSessao}>
+            {isMorador ? "MINHA ÁREA" : "SERVIÇOS DISPONÍVEIS"}
+          </Text>
 
-      <ScrollView contentContainerStyle={styles.menuPrincipal}>
-        <Text style={styles.labelSessao}>
-          {isMorador ? "MINHA ÁREA" : "SERVIÇOS DISPONÍVEIS"}
-        </Text>
+          {!isMorador && (
+            <BotaoAcao
+              titulo="Cadastrar Entrega"
+              subTitulo="Registrar novo pacote recebido"
+              icone="cube-outline"
+              cor={COLORS.secondary}
+              rota="/entregas/cadastro"
+            />
+          )}
 
-        {/* 2. BOTÃO CADASTRAR: Escondido para Morador */}
-        {!isMorador && (
           <BotaoAcao
-            titulo="Cadastrar Entrega"
-            subTitulo="Registrar novo pacote recebido"
-            icone="cube-outline"
-            cor={COLORS.secondary}
-            rota="/entregas/cadastro"
+            titulo={isMorador ? "Minhas Encomendas" : "Lista de Encomendas"}
+            subTitulo={
+              isMorador
+                ? "Veja o que chegou para você"
+                : "Ver, filtrar e gerenciar entregas"
+            }
+            icone="list-outline"
+            cor={COLORS.primary}
+            rota="/entregas/lista-entregas"
           />
-        )}
 
-        {/* 3. LISTA DE ENCOMENDAS: Visível para ambos */}
-        <BotaoAcao
-          titulo={isMorador ? "Minhas Encomendas" : "Lista de Encomendas"}
-          subTitulo={
-            isMorador
-              ? "Veja o que chegou para você"
-              : "Ver, filtrar e gerenciar entregas"
-          }
-          icone="list-outline"
-          cor={COLORS.primary}
-          rota="/entregas/lista-entregas"
-        />
+          {!isMorador && (
+            <BotaoAcao
+              titulo="Ler QR Code"
+              subTitulo="Baixa rápida de saída de pacotes"
+              icone="qr-code-outline"
+              cor="#e67e22"
+              onPress={() => setIsScannerVisible(true)}
+            />
+          )}
 
-        {/* 4. LER QR CODE: Escondido para Morador */}
-        {!isMorador && (
-          <BotaoAcao
-            titulo="Ler QR Code"
-            subTitulo="Baixa rápida de saída de pacotes"
-            icone="qr-code-outline"
-            cor="#e67e22"
-            onPress={() => setIsScannerVisible(true)}
-          />
-        )}
+          {/* BOTÃO ADMIN EXCLUSIVO WEB (Se necessário futuramente) */}
+          {Platform.OS === "web" && !isMorador && (
+            <BotaoAcao
+              titulo="Painel Administrativo"
+              subTitulo="Gestão estratégica do condomínio"
+              icone="settings-outline"
+              cor="#34495e"
+              rota="/admin/home"
+            />
+          )}
 
-        <View style={styles.divider} />
-        <Text style={styles.labelSessao}>SISTEMA</Text>
+          <View style={styles.divider} />
+          <Text style={styles.labelSessao}>SISTEMA</Text>
 
-        <TouchableOpacity style={styles.botaoSair} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={20} color="#e74c3c" />
-          <Text style={styles.textoSair}>Sair do Aplicativo</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.botaoSair} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={20} color="#e74c3c" />
+            <Text style={styles.textoSair}>Sair do Aplicativo</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
-
-      {/* 5. MODAL SCANNER: Só faz sentido existir se não for morador */}
       {!isMorador && (
         <ScannerModal
           visible={isScannerVisible}
@@ -144,8 +149,20 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  menuPrincipal: { padding: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  // Mágica da centralização e largura limitada
+  contentWrapper: {
+    width: "100%",
+    maxWidth: 1350,
+    alignSelf: "center",
+    padding: 20,
+  },
   labelSessao: {
     fontSize: 12,
     fontWeight: "800",
@@ -161,11 +178,22 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 16,
     marginBottom: 15,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
+    ...Platform.select({
+      web: {
+        cursor: "pointer",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+      },
+      default: {
+        elevation: 2,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+      },
+    }),
   },
   iconeContainer: {
     width: 55,

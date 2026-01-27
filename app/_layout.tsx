@@ -1,62 +1,63 @@
 import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { Platform, StyleSheet, View } from "react-native";
+import { COLORS } from "../src/constants/theme";
 import { AuthProvider, useAuthContext } from "../src/context/AuthContext";
 
-// Componente interno para gerenciar a navegação baseada no estado de login
 function RootLayoutNav() {
-  const { user, loading } = useAuthContext();
+  const { user, loading, condominioAtivo } = useAuthContext();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return; // Aguarda o AsyncStorage carregar os dados do João Silva
+    if (loading) return;
 
-    // Verifica se o usuário está tentando acessar a tela de login (raiz)
     const isAtLogin = segments.length === 0 || segments[0] === "index";
+    const isAtSelecao = segments[0] === "selecao-condominio";
 
-    if (user && isAtLogin) {
-      // Se houver sessão ativa e estiver no Login, pula direto para a Home
-      router.replace("/home");
-    } else if (!user && !isAtLogin) {
-      // Se a sessão sumir (logoff) e não estiver no Login, manda de volta para a raiz
+    if (user) {
+      // CENÁRIO A: Logado, mas sem condomínio ativo (Multi-condomínio)
+      // Se user.condominios não existir ou for vazio, a proteção do AuthContext deve atuar,
+      // mas aqui garantimos que ele não fique num limbo.
+      if (!condominioAtivo && user.condominios?.length > 1) {
+        if (!isAtSelecao) {
+          router.replace("/selecao-condominio");
+        }
+      }
+      // CENÁRIO B: Logado e com condomínio definido (ou Seleção concluída)
+      else if (condominioAtivo && (isAtLogin || isAtSelecao)) {
+        router.replace("/home");
+      }
+    }
+    // CENÁRIO C: Não logado
+    else if (!isAtLogin) {
       router.replace("/");
     }
-  }, [user, loading, segments]);
+  }, [user, condominioAtivo, loading, segments]);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: "fade_from_bottom",
-      }}
-    >
-      {/* Tela de Login */}
-      <Stack.Screen name="index" />
-
-      {/* Home do Sistema */}
-      <Stack.Screen name="home" />
-
-      {/* Telas de Entregas */}
-      <Stack.Screen
-        name="entregas/lista-entregas"
-        options={{
+    <View style={styles.outerContainer}>
+      <Stack
+        screenOptions={{
           headerShown: false,
-          animation: "slide_from_right",
+          animation: Platform.OS === "ios" ? "fade" : "fade_from_bottom",
+          // O fundo do conteúdo do Stack segue o tema
+          contentStyle: { backgroundColor: COLORS.background },
         }}
-      />
-
-      <Stack.Screen
-        name="entregas/cadastro"
-        options={{
-          animation: "slide_from_bottom",
-        }}
-      />
-    </Stack>
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="selecao-condominio" />
+        <Stack.Screen name="home" />
+        <Stack.Screen name="entregas/lista-entregas" />
+        <Stack.Screen name="entregas/cadastro" />
+        <Stack.Screen name="admin/home" />
+        <Stack.Screen name="admin/importacao" />
+      </Stack>
+    </View>
   );
 }
 
-// O componente principal apenas envolve o Nav com o Provider
 export default function RootLayout() {
   return (
     <AuthProvider>
@@ -65,3 +66,10 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+});

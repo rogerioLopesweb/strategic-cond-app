@@ -1,14 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Platform,
   RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -20,162 +22,116 @@ import Header from "@/src/components/Header";
 import { COLORS } from "@/src/constants/theme";
 import { useAuthContext } from "@/src/context/AuthContext";
 import { entregaService } from "@/src/services/entregaService";
-interface Entrega {
-  id: string;
-  codigo_rastreio: string;
-  unidade: string;
-  bloco: string;
-  status: "recebido" | "entregue" | "devolvida" | "cancelada"; // Adicionado cancelada
-  marketplace?: string;
-  data_recebimento: string;
-  url_foto_etiqueta?: string | null;
-  observacoes?: string;
-  morador_nome: string;
-  morador_tipo: string;
-  morador_telefone: string;
-  retirada_urgente: boolean;
-  tipo_embalagem: string;
-  operador_entrada_nome?: string;
-  operador_saida_nome?: string;
-  operador_saida_perfil?: string;
-  operador_cancelamento_nome?: string;
-  operador_cancelamento_perfil?: string;
-  motivo_cancelamento?: string;
-  data_cancelamento?: string;
-  quem_retirou?: string;
-  documento_retirou?: string;
-  data_retirada?: string;
-}
 
 export default function ListaEntregas() {
-  // 1. Consumir isMorador para controle de visibilidade
-  const { user, logout, isMorador } = useAuthContext();
+  const { condominioAtivo, isMorador, loading: authLoading } = useAuthContext();
   const router = useRouter();
+  const { width } = useWindowDimensions();
 
-  const [entregas, setEntregas] = useState<Entrega[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  // LÓGICA DE COLUNAS RESPONSIVAS
+  const numColumns = width > 1024 ? 4 : width > 768 ? 3 : 2;
+
+  const [entregas, setEntregas] = useState<any[]>([]);
+  const [carregando, setCarregando] = useState(false);
+
+  // Filtros
   const [filtroUnidade, setFiltroUnidade] = useState("");
   const [filtroBloco, setFiltroBloco] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<string>("recebido");
   const [filtroUrgente, setFiltroUrgente] = useState(false);
-  const [modalCancelarVisible, setModalCancelarVisible] = useState(false);
-  const [entregaSelecionada, setEntregaSelecionada] = useState<Entrega | null>(
-    null,
-  );
+
+  // Modais
   const [modalVisible, setModalVisible] = useState(false);
   const [modalBaixaVisible, setModalBaixaVisible] = useState(false);
+  const [modalCancelarVisible, setModalCancelarVisible] = useState(false);
+  const [entregaSelecionada, setEntregaSelecionada] = useState<any | null>(
+    null,
+  );
+
   const [modalFeedback, setModalFeedback] = useState({
     visible: false,
-    type: "success" as "success" | "error" | "warning" | "confirm",
+    type: "success" as any,
     title: "",
     message: "",
   });
 
-  const carregarDados = async () => {
+  // FUNÇÃO DE CARGA DE DADOS CORRIGIDA
+  const carregarDados = useCallback(async () => {
+    // Se o Auth ainda está carregando ou não temos condomínio ativo, abortamos
+    if (authLoading || !condominioAtivo?.id) {
+      setEntregas([]);
+      return;
+    }
+
     setCarregando(true);
     try {
       const res = await entregaService.listar({
         pagina: 1,
-        limite: 50,
+        limite: 100,
         status: statusFiltro,
         unidade: filtroUnidade,
         bloco: filtroBloco,
         retirada_urgente: filtroUrgente,
+        condominio_id: condominioAtivo.id, // ID dinâmico vindo do contexto
       });
 
       if (res.success) {
         setEntregas(Array.isArray(res.data) ? res.data : []);
       }
     } catch (error) {
-      console.error("Erro ao carregar lista:", error);
+      console.error("Erro ao carregar lista de entregas:", error);
     } finally {
       setCarregando(false);
     }
-  };
+  }, [
+    condominioAtivo,
+    statusFiltro,
+    filtroUnidade,
+    filtroBloco,
+    filtroUrgente,
+    authLoading,
+  ]);
 
+  // Efeito que reage a qualquer mudança de filtro ou troca de condomínio
   useEffect(() => {
     carregarDados();
-  }, [statusFiltro, filtroUnidade, filtroBloco, filtroUrgente]);
+  }, [carregarDados]);
 
   const handleAbrirBaixaManual = () => {
     setModalVisible(false);
-    setTimeout(() => {
-      setModalBaixaVisible(true);
-    }, 300);
+    setTimeout(() => setModalBaixaVisible(true), 300);
   };
 
-  const handleConfirmarBaixa = async (dados: {
-    quem_retirou: string;
-    documento_retirou: string;
-  }) => {
+  const handleConfirmarBaixa = async (dados: any) => {
     if (!entregaSelecionada) return;
     setCarregando(true);
     const res = await entregaService.registrarSaidaManual(
       entregaSelecionada.id,
       dados,
     );
-
     if (res.success) {
       setModalBaixaVisible(false);
-      setModalVisible(false);
       setModalFeedback({
         visible: true,
         type: "success",
         title: "Retirada Concluída!",
-        message: "O status da encomenda foi atualizado com sucesso.",
+        message: "O status da encomenda foi atualizado.",
       });
       carregarDados();
-    } else {
-      setModalFeedback({
-        visible: true,
-        type: "error",
-        title: "Erro na Baixa",
-        message: res.error,
-      });
     }
     setCarregando(false);
   };
 
-  // Estados necessários
-  const [erroCancelamento, setErroCancelamento] = useState<string | null>(null);
-
-  const handleConfirmarCancelamento = async (motivo: string) => {
-    setCarregando(true);
-    setErroCancelamento(null); // Limpa erro anterior
-
-    const res = await entregaService.cancelar(entregaSelecionada.id, motivo);
-
-    if (res.success) {
-      // 1. FECHA o modal de cancelamento
-      setModalCancelarVisible(false);
-
-      // 2. ABRE o modal de sucesso (FeedbackModal)
-      setTimeout(() => {
-        setModalFeedback({
-          visible: true,
-          type: "success",
-          title: "Anulação Concluída",
-          message: "O registro foi invalidado com sucesso para auditoria.",
-        });
-        carregarDados(); // Recarrega a lista
-      }, 400); // Pequeno delay para a animação de saída/entrada ficar fluida
-    } else {
-      // 3. MANTÉM o modal aberto e exibe o erro interno
-      setErroCancelamento(res.error);
-    }
-    setCarregando(false);
-  };
-
-  const renderItem = ({ item }: { item: Entrega }) => {
+  const renderItem = ({ item }: { item: any }) => {
     const isPendente = item.status === "recebido";
     const isCancelada = item.status === "cancelada";
     const isUrgente = item.retirada_urgente === true;
 
-    // Lógica de cores dinâmica
-    let statusColor = COLORS.success;
-    if (isPendente) statusColor = "#f39c12";
-    if (isCancelada) statusColor = "#95a5a6"; // Cinza para neutro/desativado
-
+    let statusColor = isPendente
+      ? "#f39c12"
+      : isCancelada
+        ? "#95a5a6"
+        : COLORS.success;
     const badgeBg = isPendente
       ? "#fef5e7"
       : isCancelada
@@ -186,12 +142,8 @@ export default function ListaEntregas() {
       <TouchableOpacity
         style={[
           styles.card,
+          { flex: 1 / numColumns },
           isPendente && { borderColor: statusColor, borderWidth: 0.5 },
-          isCancelada && {
-            borderColor: "#ddd",
-            backgroundColor: "#fafafa",
-            opacity: 0.8,
-          },
           isUrgente &&
             !isCancelada && {
               borderColor: "#e74c3c",
@@ -218,24 +170,14 @@ export default function ListaEntregas() {
           </View>
         </View>
         <View style={styles.infoBox}>
-          <Text
-            style={[styles.nomeMoradorCard, isCancelada && { color: "#999" }]}
-            numberOfLines={1}
-          >
+          <Text style={styles.nomeMoradorCard} numberOfLines={1}>
             {item.morador_nome || "N/I"}
           </Text>
           <Text style={styles.tipoEmbalagemCard}>
             {item.tipo_embalagem || "Pacote"}
           </Text>
-          <View
-            style={[
-              styles.tipoBadge,
-              isCancelada && { backgroundColor: "#eee" },
-            ]}
-          >
-            <Text
-              style={[styles.tipoTextoCard, isCancelada && { color: "#888" }]}
-            >
+          <View style={styles.tipoBadge}>
+            <Text style={styles.tipoTextoCard}>
               {item.morador_tipo?.toUpperCase() || "MORADOR"}
             </Text>
           </View>
@@ -243,13 +185,7 @@ export default function ListaEntregas() {
         <View
           style={[
             styles.statusContainer,
-            {
-              borderTopColor: isCancelada
-                ? "#eee"
-                : isPendente
-                  ? "#fdebd0"
-                  : "#d4efdf",
-            },
+            { borderTopColor: isPendente ? "#fdebd0" : "#d4efdf" },
           ]}
         >
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
@@ -263,123 +199,125 @@ export default function ListaEntregas() {
 
   return (
     <View style={styles.safeContainer}>
+      {/* O Header fica fora do wrapper para ocupar 100% da largura na Web */}
       <Header
-        titulo="StrategicCond"
-        subtitulo={
-          user?.condominio ||
-          (isMorador ? "Minha Residência" : "Dashboard Portaria")
-        }
+        tituloPagina="Portaria & Encomendas" // Ou "Painel de Controle"
+        breadcrumb={["Encomendas", "Lista"]} // Vazio pois é a raiz
+        showBack={true} // Na Home não faz sentido ter botão voltar
       />
 
-      <View style={styles.filtroWrapper}>
-        <View style={styles.searchRow}>
-          <View style={styles.inputContainer}>
-            <Ionicons
-              name="home-outline"
-              size={16}
-              color={COLORS.textLight}
-              style={{ marginLeft: 10 }}
-            />
-            <TextInput
-              placeholder="Unidade"
-              style={styles.input}
-              value={filtroUnidade}
-              onChangeText={setFiltroUnidade}
-              keyboardType="numeric"
-            />
-          </View>
-          <View style={[styles.inputContainer, { flex: 0.5, marginLeft: 10 }]}>
-            <Ionicons
-              name="business-outline"
-              size={16}
-              color={COLORS.textLight}
-              style={{ marginLeft: 10 }}
-            />
-            <TextInput
-              placeholder="Bloco"
-              style={styles.input}
-              value={filtroBloco}
-              onChangeText={setFiltroBloco}
-              autoCapitalize="characters"
-            />
-          </View>
-        </View>
-
-        <View style={styles.filterBar}>
-          {/* Botão Urgentes */}
-          <TouchableOpacity
-            style={[
-              styles.filterBtnUrgente,
-              filtroUrgente && { backgroundColor: "#e74c3c" },
-            ]}
-            onPress={() => setFiltroUrgente(!filtroUrgente)}
-          >
-            <Text
-              style={[
-                styles.filterTextUrgente,
-                filtroUrgente && { color: "#fff" },
-              ]}
+      <View style={styles.contentWrapper}>
+        <View style={styles.filtroWrapper}>
+          <View style={styles.searchRow}>
+            <View style={styles.inputContainer}>
+              <Ionicons
+                name="home-outline"
+                size={16}
+                color={COLORS.textLight}
+                style={{ marginLeft: 10 }}
+              />
+              <TextInput
+                placeholder="Unidade"
+                style={styles.input}
+                value={filtroUnidade}
+                onChangeText={setFiltroUnidade}
+                keyboardType="numeric"
+              />
+            </View>
+            <View
+              style={[styles.inputContainer, { flex: 0.5, marginLeft: 10 }]}
             >
-              🔥 URG.
-            </Text>
-          </TouchableOpacity>
+              <Ionicons
+                name="business-outline"
+                size={16}
+                color={COLORS.textLight}
+                style={{ marginLeft: 10 }}
+              />
+              <TextInput
+                placeholder="Bloco"
+                style={styles.input}
+                value={filtroBloco}
+                onChangeText={setFiltroBloco}
+                autoCapitalize="characters"
+              />
+            </View>
+          </View>
 
-          {/* Botões de Status Dinâmicos */}
-          {[
-            { id: "recebido", label: "PENDENTES", color: "#f39c12" },
-            { id: "entregue", label: "ENTREGUES", color: COLORS.success },
-            { id: "cancelada", label: "CANCELADAS", color: "#95a5a6" },
-          ].map((s) => (
+          <View style={styles.filterBar}>
             <TouchableOpacity
-              key={s.id}
               style={[
-                styles.filterBtn,
-                statusFiltro === s.id && {
-                  backgroundColor: s.color,
-                  borderColor: s.color,
-                },
+                styles.filterBtnUrgente,
+                filtroUrgente && { backgroundColor: "#e74c3c" },
               ]}
-              onPress={() => setStatusFiltro(s.id)}
+              onPress={() => setFiltroUrgente(!filtroUrgente)}
             >
               <Text
                 style={[
-                  styles.filterText,
-                  statusFiltro === s.id && { color: "#fff" },
+                  styles.filterTextUrgente,
+                  filtroUrgente && { color: "#fff" },
                 ]}
               >
-                {s.label}
+                🔥 URG.
               </Text>
             </TouchableOpacity>
-          ))}
-        </View>
-      </View>
 
-      <FlatList
-        data={entregas}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        numColumns={3}
-        contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={carregando} onRefresh={carregarDados} />
-        }
-        ListEmptyComponent={
-          !carregando ? (
-            <View style={styles.emptyBox}>
-              <Ionicons name="cube-outline" size={50} color="#ddd" />
-              <Text style={styles.emptyText}>
-                Nenhuma encomenda encontrada.
-              </Text>
-            </View>
-          ) : (
-            <ActivityIndicator
-              size="large"
-              color={COLORS.primary}
-              style={{ marginTop: 50 }}
-            />
-          )
-        }
-      />
+            {[
+              { id: "recebido", label: "PENDENTES", color: "#f39c12" },
+              { id: "entregue", label: "ENTREGUES", color: COLORS.success },
+              { id: "cancelada", label: "CANCELADAS", color: "#95a5a6" },
+            ].map((s) => (
+              <TouchableOpacity
+                key={s.id}
+                style={[
+                  styles.filterBtn,
+                  statusFiltro === s.id && {
+                    backgroundColor: s.color,
+                    borderColor: s.color,
+                  },
+                ]}
+                onPress={() => setStatusFiltro(s.id)}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    statusFiltro === s.id && { color: "#fff" },
+                  ]}
+                >
+                  {s.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        <FlatList
+          key={numColumns}
+          data={entregas}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={numColumns}
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={carregando} onRefresh={carregarDados} />
+          }
+          ListEmptyComponent={
+            !carregando ? (
+              <View style={styles.emptyBox}>
+                <Ionicons name="cube-outline" size={50} color="#ddd" />
+                <Text style={styles.emptyText}>
+                  Nenhuma encomenda encontrada.
+                </Text>
+              </View>
+            ) : (
+              <ActivityIndicator
+                size="large"
+                color={COLORS.primary}
+                style={{ marginTop: 50 }}
+              />
+            )
+          }
+        />
+      </View>
 
       <ModalDetalhesEntrega
         visible={modalVisible}
@@ -408,10 +346,11 @@ export default function ListaEntregas() {
         onConfirm={handleConfirmarBaixa}
         loading={carregando}
       />
+
       <ModalCancelarEntrega
         visible={modalCancelarVisible}
         onClose={() => setModalCancelarVisible(false)}
-        onConfirm={handleConfirmarCancelamento}
+        onConfirm={carregarDados}
         loading={carregando}
       />
 
@@ -425,12 +364,22 @@ export default function ListaEntregas() {
 
 const styles = StyleSheet.create({
   safeContainer: { flex: 1, backgroundColor: "#f4f7f6" },
+  contentWrapper: {
+    width: "100%",
+    maxWidth: 1350,
+    alignSelf: "center",
+    flex: 1,
+  },
   filtroWrapper: {
     backgroundColor: "#fff",
     padding: 12,
-    margin: 10,
+    marginHorizontal: 10,
+    marginTop: 10,
     borderRadius: 12,
-    elevation: 3,
+    ...Platform.select({
+      web: { shadowOpacity: 0.1, shadowRadius: 10 },
+      default: { elevation: 3 },
+    }),
   },
   searchRow: { flexDirection: "row", marginBottom: 10 },
   inputContainer: {
@@ -469,48 +418,51 @@ const styles = StyleSheet.create({
   filterTextUrgente: { fontSize: 8, fontWeight: "bold", color: "#e74c3c" },
   list: { padding: 6, paddingBottom: 50 },
   card: {
-    flex: 1 / 3,
     backgroundColor: "#fff",
-    margin: 4,
+    margin: 6,
     borderRadius: 12,
-    padding: 8,
-    minHeight: 150,
-    elevation: 2,
+    padding: 12,
+    minHeight: 160,
+    ...Platform.select({
+      web: { cursor: "pointer", shadowOpacity: 0.05 },
+      default: { elevation: 2 },
+    }),
     justifyContent: "space-between",
   },
   cardHeader: { marginBottom: 5 },
-  unidadeBadge: { borderRadius: 6, paddingVertical: 4, alignItems: "center" },
-  unidadeTextoDestaque: { fontSize: 14, fontWeight: "900" },
-  infoBox: { alignItems: "center" },
+  unidadeBadge: { borderRadius: 6, paddingVertical: 6, alignItems: "center" },
+  unidadeTextoDestaque: { fontSize: 16, fontWeight: "900" },
+  infoBox: { alignItems: "center", marginVertical: 8 },
   nomeMoradorCard: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: "bold",
     color: COLORS.textMain,
     textAlign: "center",
   },
-  tipoEmbalagemCard: { fontSize: 9, color: "#7f8c8d", marginTop: 2 },
+  tipoEmbalagemCard: { fontSize: 10, color: "#7f8c8d", marginTop: 2 },
   tipoBadge: {
     backgroundColor: "#eef2f7",
     borderRadius: 4,
-    padding: 2,
-    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 6,
   },
-  tipoTextoCard: { fontSize: 7, color: COLORS.primary, fontWeight: "800" },
+  tipoTextoCard: { fontSize: 8, color: COLORS.primary, fontWeight: "800" },
   tagUrgente: {
     position: "absolute",
     top: -8,
-    right: 0,
+    right: 10,
     backgroundColor: "#e74c3c",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
     zIndex: 10,
     flexDirection: "row",
     alignItems: "center",
   },
   tagUrgenteTexto: {
     color: "#fff",
-    fontSize: 7,
+    fontSize: 8,
     fontWeight: "bold",
     marginLeft: 2,
   },
@@ -518,11 +470,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: 1,
-    paddingTop: 6,
+    paddingTop: 8,
     justifyContent: "center",
   },
-  statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
-  statusLabel: { fontSize: 8, fontWeight: "800" },
+  statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
+  statusLabel: { fontSize: 10, fontWeight: "800" },
   emptyBox: { alignItems: "center", marginTop: 80 },
   emptyText: { color: "#999", marginTop: 10 },
 });

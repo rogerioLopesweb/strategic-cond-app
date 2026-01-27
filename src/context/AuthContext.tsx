@@ -6,29 +6,37 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { authService } from "../services/authService"; // Importando o serviço aqui
 import { notificationService } from "../services/notificationService";
 
 const USER_KEY = "@StrategicCond:user";
 const TOKEN_KEY = "@StrategicCond:token";
+const ACTIVE_CONDO_KEY = "@StrategicCond:activeCondo";
+
+export interface Condominio {
+  id: string;
+  nome: string;
+  perfil: string;
+}
 
 export interface UserData {
   id: string;
-  user_id: string;
   nome: string;
   cpf: string;
-  perfil: string;
-  condominio: string;
-  condominio_id: string;
   token?: string;
+  condominios: Condominio[];
 }
 
 interface AuthContextData {
   user: UserData | null;
-  loginSession: (data: UserData) => Promise<void>;
+  condominioAtivo: Condominio | null;
+  login: (cpf: string, senha: string) => Promise<boolean>; // Função centralizada
+  loginLoading: boolean;
+  loginError: string | null;
+  selecionarCondominio: (id: string) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
   signed: boolean;
-  // NOVIDADE: Helper para simplificar a lógica nas telas
   isMorador: boolean;
 }
 
@@ -38,13 +46,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<UserData | null>(null);
+  const [condominioAtivo, setCondominioAtivo] = useState<Condominio | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
-  // Helper para identificar se o perfil logado atua como morador
-  // Aceita: 'Proprietário', 'Inquilino', 'Morador', etc.
   const checkIsMorador = useCallback(() => {
-    if (!user?.perfil) return false;
-    const perfil = user.perfil.toLowerCase();
+    if (!condominioAtivo?.perfil) return false;
+    const perfil = condominioAtivo.perfil.toLowerCase();
     const perfisMorador = [
       "morador",
       "proprietário",
@@ -53,20 +64,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       "dependente",
     ];
     return perfisMorador.includes(perfil);
-  }, [user]);
+  }, [condominioAtivo]);
 
   useEffect(() => {
-    if (user) {
+    if (user && condominioAtivo) {
       handlePushRegistration();
     }
-  }, [user]);
+  }, [user, condominioAtivo]);
 
   const handlePushRegistration = async () => {
     try {
       const token = await notificationService.registerForPushNotifications();
-      if (token) {
-        await notificationService.updateServerToken(token);
-      }
+      if (token) await notificationService.updateServerToken(token);
     } catch (error) {
       console.error("Erro no fluxo de registro de push:", error);
     }
@@ -75,9 +84,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     async function loadStorageData() {
       try {
-        const storageUser = await AsyncStorage.getItem(USER_KEY);
+        const [storageUser, storageActive] = await Promise.all([
+          AsyncStorage.getItem(USER_KEY),
+          AsyncStorage.getItem(ACTIVE_CONDO_KEY),
+        ]);
+
         if (storageUser) {
-          setUser(JSON.parse(storageUser));
+          const parsedUser = JSON.parse(storageUser);
+          setUser(parsedUser);
+          if (storageActive) {
+            setCondominioAtivo(JSON.parse(storageActive));
+          } else if (parsedUser.condominios?.length === 1) {
+            const unico = parsedUser.condominios[0];
+            setCondominioAtivo(unico);
+            await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(unico));
+          }
         }
       } catch (error) {
         console.error("Erro ao carregar sessão:", error);
@@ -88,24 +109,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     loadStorageData();
   }, []);
 
+  // Lógica Interna de Sessão (Atômica)
   const loginSession = useCallback(async (data: UserData) => {
-    try {
-      const { token, ...userData } = data;
-      setUser(userData as UserData);
+    const { token, ...userData } = data;
+    if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
 
-      if (token) {
-        await AsyncStorage.setItem(TOKEN_KEY, token);
-      }
-      await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
-    } catch (error) {
-      console.error("Erro ao salvar sessão:", error);
+    let activeCondo = null;
+    if (userData.condominios && userData.condominios.length === 1) {
+      activeCondo = userData.condominios[0];
+      await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(activeCondo));
+    } else {
+      await AsyncStorage.removeItem(ACTIVE_CONDO_KEY);
     }
+
+    setCondominioAtivo(activeCondo);
+    setUser(userData);
   }, []);
+
+  // FUNÇÃO DE LOGIN UNIFICADA (Substitui o useAuth hook)
+  const login = useCallback(
+    async (cpf: string, senha: string) => {
+      setLoginLoading(true);
+      setLoginError(null);
+      try {
+        const res = await authService.login(cpf, senha);
+        if (res.success && res.usuario) {
+          await loginSession(res.usuario);
+          return true;
+        }
+        return false;
+      } catch (err: any) {
+        const message = err.response?.data?.message || "Credenciais inválidas";
+        setLoginError(message);
+        return false;
+      } finally {
+        setLoginLoading(false);
+      }
+    },
+    [loginSession],
+  );
+
+  const selecionarCondominio = useCallback(
+    async (id: string) => {
+      const escolhido = user?.condominios.find((c) => c.id === id);
+      if (escolhido) {
+        setCondominioAtivo(escolhido);
+        await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(escolhido));
+      }
+    },
+    [user],
+  );
 
   const logout = useCallback(async () => {
     try {
-      await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY]);
+      await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY, ACTIVE_CONDO_KEY]);
       setUser(null);
+      setCondominioAtivo(null);
     } catch (error) {
       console.error("Erro ao realizar logout:", error);
     }
@@ -115,11 +175,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     <AuthContext.Provider
       value={{
         user,
-        loginSession,
+        condominioAtivo,
+        login,
+        loginLoading,
+        loginError,
+        selecionarCondominio,
         logout,
         loading,
-        signed: !!user,
-        isMorador: checkIsMorador(), // Disponibiliza a validação globalmente
+        signed:
+          !!user && (user.condominios?.length > 1 ? true : !!condominioAtivo),
+        isMorador: checkIsMorador(),
       }}
     >
       {children}
@@ -129,8 +194,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useAuthContext = () => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (!context)
     throw new Error("useAuthContext deve ser usado dentro de um AuthProvider");
-  }
   return context;
 };

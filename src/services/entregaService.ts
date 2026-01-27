@@ -11,8 +11,19 @@ export const entregaService = {
 
   /**
    * Registra a entrada de uma nova encomenda no sistema.
+   * Agora exige o condominio_id para garantir a integridade Multi-Tenant.
    */
-  registrar: async (dados: any) => {
+  registrar: async (dados: {
+    condominio_id: string; // Obrigatório na nova arquitetura
+    unidade: string;
+    bloco: string;
+    morador_id?: string;
+    tipo_embalagem: string;
+    marketplace?: string;
+    codigo_rastreio?: string;
+    retirada_urgente?: boolean;
+    observacoes?: string;
+  }) => {
     try {
       const response = await api.post("/api/entregas/registrar", dados);
       return { success: true, data: response.data };
@@ -25,17 +36,27 @@ export const entregaService = {
   },
 
   /**
-   * Lista entregas filtradas (unidade, bloco, status, urgência).
+   * Lista entregas filtradas.
+   * O condominio_id é crucial para separar os dados no SaaS.
    */
-  listar: async (filtros: any = { pagina: 1, limite: 10 }) => {
+  listar: async (filtros: {
+    condominio_id: string; // Filtro mestre
+    pagina?: number;
+    limite?: number;
+    status?: string;
+    unidade?: string;
+    bloco?: string;
+    retirada_urgente?: boolean;
+  }) => {
     try {
-      // Ajustado para a rota correta definida no backend
       const response = await api.get("/api/entregas", {
         params: filtros,
       });
+
+      // Mapeia a estrutura de dados vinda do backend (Paginada)
       return {
         success: true,
-        data: response.data.data,
+        data: response.data.data || [],
         meta: response.data.meta,
       };
     } catch (error: any) {
@@ -48,7 +69,6 @@ export const entregaService = {
 
   /**
    * Atualiza dados de um volume existente (Auditoria 360).
-   * Restrito a campos logísticos para preservar a identidade do lançamento.
    */
   atualizar: async (
     id: string,
@@ -57,31 +77,25 @@ export const entregaService = {
       marketplace?: string;
       retirada_urgente?: boolean;
       observacoes?: string;
-      codigo_rastreio?: string; // Adicionado para permitir correção de rastreio
+      codigo_rastreio?: string;
     },
   ) => {
     try {
-      // O backend agora injeta automaticamente data_atualizacao e operador_atualizacao_id via Token
       const response = await api.put(`/api/entregas/${id}`, dados);
-
       return {
         success: true,
-        data: response.data.entrega, // Retornamos o objeto atualizado vindo do RETURNING do SQL
+        data: response.data.entrega,
       };
     } catch (error: any) {
-      // Tratamento assertivo de erro (ex: se o porteiro tentar editar uma entrega já entregue)
       return {
         success: false,
-        error:
-          error.response?.data?.message ||
-          "Erro ao atualizar cadastro da encomenda",
+        error: error.response?.data?.message || "Erro ao atualizar encomenda",
       };
     }
   },
 
   /**
-   * CANCELAMENTO LOGÍSTICO (Substitui a exclusão física)
-   * Envia o motivo do cancelamento para manter a trilha de auditoria.
+   * CANCELAMENTO LOGÍSTICO (Auditoria)
    */
   cancelar: async (id: string, motivo: string) => {
     try {
@@ -97,28 +111,12 @@ export const entregaService = {
     }
   },
 
-  /**
-   * Nota: Deletar físico deve ser evitado para fins de conformidade.
-   * Mantido apenas se houver necessidade de limpeza técnica de banco.
-   */
-  deletar: async (id: string) => {
-    try {
-      const response = await api.delete(`/api/entregas/${id}`);
-      return { success: true, data: response.data };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.response?.data?.message || "Erro ao excluir entrega",
-      };
-    }
-  },
-
   // ============================================================
   // BLOCO 2: LOGÍSTICA DE SAÍDA E BAIXAS
   // ============================================================
 
   /**
-   * Registra a retirada física da encomenda informando o recebedor.
+   * Registra a retirada física da encomenda.
    */
   registrarSaidaManual: async (
     id: string,
@@ -133,22 +131,18 @@ export const entregaService = {
     } catch (error: any) {
       return {
         success: false,
-        error:
-          error.response?.data?.message || "Erro ao registrar saída manual",
+        error: error.response?.data?.message || "Erro ao registrar saída",
       };
     }
   },
 
   /**
-   * Realiza a baixa automatizada via validação de QR Code.
+   * Realiza a baixa automatizada via QR Code.
    */
   registrarSaidaQRCode: async (id: string) => {
     try {
       const response = await api.patch(`/api/entregas/${id}/saida-qrcode`);
-      return {
-        success: true,
-        data: response.data,
-      };
+      return { success: true, data: response.data };
     } catch (error: any) {
       return {
         success: false,

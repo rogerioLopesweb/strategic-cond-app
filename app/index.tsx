@@ -1,10 +1,9 @@
 import { useAuthContext } from "@/src/context/AuthContext";
-import { useAuth } from "@/src/hooks/useAuth";
-import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
   ImageBackground,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -13,9 +12,8 @@ import {
 } from "react-native";
 
 export default function Login() {
-  const router = useRouter();
-  const { login, loading, error: apiError } = useAuth();
-  const { loginSession } = useAuthContext();
+  // Agora consumimos TUDO do AuthContext centralizado
+  const { login, loginLoading, loginError } = useAuthContext();
 
   const [cpf, setCpf] = useState("");
   const [senha, setSenha] = useState("");
@@ -25,36 +23,21 @@ export default function Login() {
     setValidacaoErro("");
 
     if (!cpf.trim() || !senha.trim()) {
-      setValidacaoErro("* preencha os campos");
+      setValidacaoErro("* Preencha todos os campos");
       return;
     }
 
-    const result = await login(cpf, senha);
+    // A inteligência agora está no Contexto.
+    // Ele faz o fetch, valida a senha, salva no AsyncStorage e define o condomínio ativo.
+    const sucesso = await login(cpf, senha);
 
-    // DEBUG: Verifique no console do navegador (F12) o que aparece aqui
-    console.log("Resposta da API no Login:", result);
-
-    if (result) {
-      try {
-        /* IMPORTANTE: Verifique se os dados não estão dentro de result.user ou result.data
-           Se a API retornar { user: { nome: "..." } }, você deve usar result.user.nome
-        */
-        await loginSession({
-          id: result.usuario.id, // Adicionado para satisfazer a interface UserData
-          user_id: result.usuario.id, // Mantido para sua compatibilidade interna
-          nome: result.usuario.nome,
-          cpf: result.usuario.cpf,
-          perfil: result.usuario.perfil,
-          condominio: result.usuario.condominio,
-          condominio_id: result.usuario.condominio_id,
-          token: result.usuario.token,
-        });
-
-        router.replace("/home");
-      } catch (e) {
-        console.error("Erro ao salvar sessão:", e);
-        setValidacaoErro("Erro interno ao processar login.");
-      }
+    if (sucesso) {
+      // Nota: Não precisamos dar router.replace aqui!
+      // O useEffect do app/_layout.tsx vai notar que 'user' e 'condominioAtivo' mudaram
+      // e vai redirecionar automaticamente para /home ou /selecao-condominio.
+      console.log(
+        "Login efetuado com sucesso, aguardando redirecionamento do layout...",
+      );
     }
   };
 
@@ -79,6 +62,7 @@ export default function Login() {
               setValidacaoErro("");
             }}
             keyboardType="numeric"
+            editable={!loginLoading}
           />
 
           <TextInput
@@ -91,20 +75,25 @@ export default function Login() {
               setValidacaoErro("");
             }}
             secureTextEntry
+            editable={!loginLoading}
           />
 
-          {validacaoErro || apiError ? (
+          {/* Exibe erro de validação local ou erro vindo da API via Contexto */}
+          {validacaoErro || loginError ? (
             <Text style={styles.erroTexto}>
-              {validacaoErro || `* ${apiError}`}
+              {validacaoErro || `* ${loginError}`}
             </Text>
           ) : null}
 
           <TouchableOpacity
-            style={[styles.botao, loading && { backgroundColor: "#7f8c8d" }]}
+            style={[
+              styles.botao,
+              loginLoading && { backgroundColor: "#7f8c8d" },
+            ]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loginLoading}
           >
-            {loading ? (
+            {loginLoading ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.botaoTexto}>Entrar</Text>
@@ -116,7 +105,6 @@ export default function Login() {
   );
 }
 
-// Estilos permanecem os mesmos...
 const styles = StyleSheet.create({
   background: { flex: 1, width: "100%", height: "100%" },
   overlay: {
@@ -130,8 +118,16 @@ const styles = StyleSheet.create({
     padding: 30,
     borderRadius: 15,
     width: "100%",
-    maxWidth: 600,
+    maxWidth: 450, // Ajustado para ficar mais elegante na Web
     alignSelf: "center",
+    ...Platform.select({
+      web: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+      },
+    }),
   },
   titulo: {
     fontSize: 28,
@@ -140,11 +136,12 @@ const styles = StyleSheet.create({
     color: "#2c3e50",
   },
   subtitulo: {
-    fontSize: 14,
+    fontSize: 12,
     color: "#7f8c8d",
     textAlign: "center",
     marginBottom: 30,
     textTransform: "uppercase",
+    letterSpacing: 1,
   },
   input: {
     borderBottomWidth: 1,
@@ -152,6 +149,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     padding: 10,
     fontSize: 16,
+    color: "#2c3e50",
   },
   inputErro: { borderColor: "#e74c3c" },
   botao: {
@@ -160,13 +158,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     marginTop: 10,
+    ...Platform.select({
+      web: { cursor: "pointer" },
+    }),
   },
   botaoTexto: { color: "#fff", fontWeight: "bold", fontSize: 18 },
   erroTexto: {
     color: "#e74c3c",
     textAlign: "left",
     marginBottom: 15,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
   },
 });

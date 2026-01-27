@@ -24,7 +24,7 @@ import {
 
 export default function CadastroEntrega() {
   const router = useRouter();
-  const { user } = useAuthContext();
+  const { condominioAtivo } = useAuthContext();
   const params = useLocalSearchParams();
 
   const isEditing = params.id && params.editar === "true";
@@ -37,7 +37,6 @@ export default function CadastroEntrega() {
     message: "",
   });
 
-  // Estados do Formulário
   const [bloco, setBloco] = useState("");
   const [unidade, setUnidade] = useState("");
   const [destinatario, setDestinatario] = useState("");
@@ -49,7 +48,6 @@ export default function CadastroEntrega() {
   const [obs, setObs] = useState("");
   const [fotoBase64, setFotoBase64] = useState<string | null>(null);
 
-  // Carregamento inicial - Executa apenas uma vez ao montar a tela
   useEffect(() => {
     if (isEditing) {
       setBloco((params.bloco as string) || "");
@@ -62,7 +60,7 @@ export default function CadastroEntrega() {
       setUrgente(params.retirada_urgente === "true");
       setObs((params.observacoes as string) || "");
     }
-  }, []); // Dependência vazia garante que não resetará enquanto você digita
+  }, [isEditing]);
 
   const mostrarAviso = (type: any, title: string, message: string) => {
     setModalConfig({ visible: true, type, title, message });
@@ -74,7 +72,7 @@ export default function CadastroEntrega() {
       mostrarAviso(
         "error",
         "Permissão Negada",
-        "Precisamos de acesso à câmera.",
+        "Precisamos de acesso à câmera para registrar a etiqueta.",
       );
       return;
     }
@@ -89,27 +87,37 @@ export default function CadastroEntrega() {
   };
 
   const handleSalvar = async () => {
+    // Validação de negócio (Agora aceita letras na unidade)
     if (!bloco.trim() || !unidade.trim() || !moradorIdReal) {
       mostrarAviso(
         "warning",
-        "Campos Obrigatórios",
-        "Bloco, Unidade e Morador são essenciais.",
+        "Atenção",
+        "Informe o Bloco, Unidade e selecione o Morador responsável.",
+      );
+      return;
+    }
+
+    if (!condominioAtivo?.id) {
+      mostrarAviso(
+        "error",
+        "Erro de Contexto",
+        "Nenhum condomínio selecionado.",
       );
       return;
     }
 
     setLoading(true);
     const payload = {
-      condominio_id: user?.condominio_id,
+      condominio_id: condominioAtivo.id,
       morador_id: moradorIdReal,
       codigo_rastreio: codigo.trim(),
-      unidade: unidade.trim(),
-      bloco: bloco.trim(),
+      unidade: unidade.trim().toUpperCase(), // Normaliza para maiúsculas (ex: 101a -> 101A)
+      bloco: bloco.trim().toUpperCase(),
       marketplace,
       tipo_embalagem: tipoEmbalagem,
       retirada_urgente: urgente,
       observacoes: obs,
-      foto_base_64: fotoBase64,
+      foto_base64: fotoBase64,
     };
 
     try {
@@ -120,14 +128,24 @@ export default function CadastroEntrega() {
       if (result.success) {
         mostrarAviso(
           "success",
-          "Tudo Pronto!",
-          isEditing ? "Cadastro atualizado!" : "Encomenda registrada!",
+          "Sucesso!",
+          isEditing
+            ? "Registro atualizado com sucesso."
+            : "Encomenda registrada e morador notificado!",
         );
       } else {
-        mostrarAviso("error", "Ops!", result.error || "Erro ao salvar.");
+        mostrarAviso(
+          "error",
+          "Erro ao salvar",
+          result.error || "Tente novamente.",
+        );
       }
     } catch (err) {
-      mostrarAviso("error", "Erro de Conexão", "Falha na comunicação.");
+      mostrarAviso(
+        "error",
+        "Falha de Conexão",
+        "Não foi possível falar com o servidor.",
+      );
     } finally {
       setLoading(false);
     }
@@ -135,9 +153,11 @@ export default function CadastroEntrega() {
 
   return (
     <View style={styles.container}>
+      {/* O Header fica fora do wrapper para ocupar 100% da largura na Web */}
       <Header
-        titulo={isEditing ? "Editar Registro" : "Novo Recebimento"}
-        showBack={true}
+        tituloPagina="Portaria & Encomendas" // Ou "Painel de Controle"
+        breadcrumb={["Encomendas", "Cadastro"]} // Vazio pois é a raiz
+        showBack={true} // Na Home não faz sentido ter botão voltar
       />
 
       <KeyboardAvoidingView
@@ -148,122 +168,138 @@ export default function CadastroEntrega() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.fotoContainer} onPress={tirarFoto}>
-              {fotoBase64 ? (
-                <Image
-                  source={{ uri: `data:image/jpeg;base64,${fotoBase64}` }}
-                  style={styles.fotoPreview}
-                />
-              ) : (
-                <View style={styles.fotoPlaceholder}>
-                  <Ionicons name="camera" size={40} color={COLORS.primary} />
-                  <Text style={styles.fotoTexto}>FOTOGRAFAR ETIQUETA</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <Text style={styles.labelSection}>
-              IDENTIFICAÇÃO {isEditing && "(SOMENTE LEITURA)"}
-            </Text>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 0.4 }]}>
-                <Text style={styles.label}>BLOCO</Text>
-                <TextInput
-                  style={[styles.input, isEditing && styles.inputDisabled]}
-                  value={bloco}
-                  onChangeText={setBloco}
-                  autoCapitalize="characters"
-                  editable={!isEditing} // Travado na edição
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 0.6, marginLeft: 15 }]}>
-                <Text style={styles.label}>UNIDADE</Text>
-                <TextInput
-                  style={[styles.input, isEditing && styles.inputDisabled]}
-                  value={unidade}
-                  onChangeText={setUnidade}
-                  keyboardType="numeric"
-                  editable={!isEditing} // Travado na edição
-                />
-              </View>
-            </View>
-
-            {!isEditing && (
-              <SeletorMoradores
-                condominioId={user?.condominio_id}
-                bloco={bloco}
-                unidade={unidade}
-                selecionadoId={moradorIdReal}
-                onSelecionar={(morador) => {
-                  setMoradorIdReal(morador.usuario_id);
-                  setDestinatario(morador.nome || morador.Nome);
-                }}
-              />
-            )}
-
-            <Text style={styles.label}>DESTINATÁRIO</Text>
-            <TextInput
-              style={[styles.input, styles.inputDisabled]}
-              value={destinatario}
-              editable={false} // Sempre travado (vem do seletor ou do banco)
-              placeholder="Morador vinculado"
-            />
-
-            <View style={styles.divider} />
-
-            <Text style={styles.labelSection}>DADOS DO VOLUME (EDITÁVEL)</Text>
-
-            <Text style={styles.label}>TIPO DE EMBALAGEM</Text>
-            <View style={styles.marketScroll}>
-              {["Pacote", "Caixa", "Carta", "Outros"].map((tipo) => (
-                <TouchableOpacity
-                  key={tipo}
-                  style={[
-                    styles.marketChip,
-                    tipoEmbalagem === tipo && styles.marketChipActive,
-                  ]}
-                  onPress={() => setTipoEmbalagem(tipo)}
-                >
-                  <Text
-                    style={[
-                      styles.marketText,
-                      tipoEmbalagem === tipo && styles.marketTextActive,
-                    ]}
-                  >
-                    {tipo}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>CÓDIGO DE RASTREIO</Text>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={styles.input}
-                placeholder="Código ou Scan"
-                value={codigo}
-                onChangeText={setCodigo} // Deve funcionar livremente
-                editable={true}
-              />
-              <TouchableOpacity style={styles.btnIconInput}>
-                <Ionicons
-                  name="barcode-outline"
-                  size={24}
-                  color={COLORS.secondary}
-                />
+          <View style={styles.contentWrapper}>
+            <View style={styles.card}>
+              <TouchableOpacity
+                style={styles.fotoContainer}
+                onPress={tirarFoto}
+              >
+                {fotoBase64 ? (
+                  <Image
+                    source={{ uri: `data:image/jpeg;base64,${fotoBase64}` }}
+                    style={styles.fotoPreview}
+                  />
+                ) : (
+                  <View style={styles.fotoPlaceholder}>
+                    <Ionicons name="camera" size={40} color={COLORS.primary} />
+                    <Text style={styles.fotoTexto}>FOTOGRAFAR ETIQUETA</Text>
+                  </View>
+                )}
               </TouchableOpacity>
-            </View>
 
-            <Text style={styles.label}>MARKETPLACE</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.marketScroll}
-            >
-              {["Mercado Livre", "Amazon", "Shopee", "Shein", "Outros"].map(
-                (item) => (
+              <Text style={styles.labelSection}>
+                IDENTIFICAÇÃO {isEditing && "(SOMENTE LEITURA)"}
+              </Text>
+
+              <View style={styles.row}>
+                <View style={[styles.inputGroup, { flex: 0.4 }]}>
+                  <Text style={styles.label}>BLOCO</Text>
+                  <TextInput
+                    style={[styles.input, isEditing && styles.inputDisabled]}
+                    value={bloco}
+                    onChangeText={setBloco}
+                    autoCapitalize="characters"
+                    placeholder="Ex: A"
+                    editable={!isEditing}
+                  />
+                </View>
+                <View
+                  style={[styles.inputGroup, { flex: 0.6, marginLeft: 15 }]}
+                >
+                  <Text style={styles.label}>UNIDADE</Text>
+                  <TextInput
+                    style={[styles.input, isEditing && styles.inputDisabled]}
+                    value={unidade}
+                    onChangeText={setUnidade}
+                    autoCapitalize="characters"
+                    placeholder="Ex: 101-A"
+                    // CORREÇÃO: Removido numeric para aceitar letras
+                    keyboardType="default"
+                    editable={!isEditing}
+                  />
+                </View>
+              </View>
+
+              {!isEditing && (
+                <SeletorMoradores
+                  condominioId={condominioAtivo?.id}
+                  bloco={bloco}
+                  unidade={unidade}
+                  selecionadoId={moradorIdReal}
+                  onSelecionar={(morador) => {
+                    setMoradorIdReal(morador.usuario_id);
+                    setDestinatario(morador.nome || morador.Nome);
+                  }}
+                />
+              )}
+
+              <Text style={styles.label}>DESTINATÁRIO</Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={destinatario}
+                editable={false}
+                placeholder="Morador será vinculado via seletor"
+              />
+
+              <View style={styles.divider} />
+
+              <Text style={styles.labelSection}>DADOS DO VOLUME</Text>
+
+              <Text style={styles.label}>TIPO DE EMBALAGEM</Text>
+              <View style={styles.chipRow}>
+                {["Pacote", "Caixa", "Carta", "Outros"].map((tipo) => (
+                  <TouchableOpacity
+                    key={tipo}
+                    style={[
+                      styles.marketChip,
+                      tipoEmbalagem === tipo && styles.marketChipActive,
+                    ]}
+                    onPress={() => setTipoEmbalagem(tipo)}
+                  >
+                    <Text
+                      style={[
+                        styles.marketText,
+                        tipoEmbalagem === tipo && styles.marketTextActive,
+                      ]}
+                    >
+                      {tipo}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.label}>CÓDIGO DE RASTREIO</Text>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Bipar ou digitar código"
+                  value={codigo}
+                  onChangeText={setCodigo}
+                  autoCapitalize="characters"
+                />
+                <TouchableOpacity style={styles.btnIconInput}>
+                  <Ionicons
+                    name="barcode-outline"
+                    size={24}
+                    color={COLORS.secondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.label}>MARKETPLACE / ORIGEM</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.marketScroll}
+              >
+                {[
+                  "Mercado Livre",
+                  "Amazon",
+                  "Shopee",
+                  "Shein",
+                  "Ifood",
+                  "Outros",
+                ].map((item) => (
                   <TouchableOpacity
                     key={item}
                     style={[
@@ -281,55 +317,62 @@ export default function CadastroEntrega() {
                       {item}
                     </Text>
                   </TouchableOpacity>
-                ),
-              )}
-            </ScrollView>
+                ))}
+              </ScrollView>
 
-            <View style={styles.urgenteContainer}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.label, { marginBottom: 0 }]}>
-                  RETIRADA URGENTE?
-                </Text>
-                <Text style={styles.subLabel}>
-                  Sinalizar volume grande ou perecível
-                </Text>
+              <View style={styles.urgenteContainer}>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.label,
+                      {
+                        marginBottom: 0,
+                        color: urgente ? "#c0392b" : COLORS.textLight,
+                      },
+                    ]}
+                  >
+                    RETIRADA URGENTE?
+                  </Text>
+                  <Text style={styles.subLabel}>
+                    Sinalizar volume perecível ou frágil
+                  </Text>
+                </View>
+                <Switch
+                  value={urgente}
+                  onValueChange={setUrgente}
+                  trackColor={{ false: "#ddd", true: "#e74c3c" }}
+                />
               </View>
-              <Switch
-                value={urgente}
-                onValueChange={setUrgente}
-                trackColor={{ false: "#ddd", true: "#e74c3c" }}
+
+              <Text style={styles.label}>OBSERVAÇÕES ADICIONAIS</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Ex: Deixar com o vizinho, caixa amassada, etc."
+                multiline
+                numberOfLines={3}
+                value={obs}
+                onChangeText={setObs}
               />
             </View>
 
-            <Text style={styles.label}>OBSERVAÇÕES</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Notas adicionais..."
-              multiline
-              value={obs}
-              onChangeText={setObs} // Deve funcionar livremente
-              editable={true}
-            />
+            <TouchableOpacity
+              style={[
+                styles.btnSalvar,
+                urgente && { backgroundColor: "#e74c3c" },
+                loading && { opacity: 0.7 },
+              ]}
+              onPress={handleSalvar}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.btnSalvarTexto}>
+                  {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR RECEBIMENTO"}
+                </Text>
+              )}
+            </TouchableOpacity>
           </View>
-
-          <TouchableOpacity
-            style={[
-              styles.btnSalvar,
-              (isEditing || urgente) && {
-                backgroundColor: urgente ? "#e74c3c" : "#27ae60",
-              },
-            ]}
-            onPress={handleSalvar}
-            disabled={loading}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.btnSalvarTexto}>
-                {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR RECEBIMENTO"}
-              </Text>
-            )}
-          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -337,8 +380,9 @@ export default function CadastroEntrega() {
         {...modalConfig}
         onClose={() => {
           setModalConfig((prev) => ({ ...prev, visible: false }));
-          if (modalConfig.type === "success")
+          if (modalConfig.type === "success") {
             router.replace("/entregas/lista-entregas");
+          }
         }}
       />
     </View>
@@ -347,16 +391,30 @@ export default function CadastroEntrega() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  scrollContent: { padding: 15, paddingBottom: 40 },
+  scrollContent: { flexGrow: 1, paddingBottom: 40 },
+  contentWrapper: {
+    width: "100%",
+    maxWidth: 1350,
+    alignSelf: "center",
+    padding: 15,
+  },
   card: {
     backgroundColor: "#fff",
     borderRadius: 15,
     padding: 20,
-    elevation: 4,
+    ...Platform.select({
+      web: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+      },
+      default: { elevation: 4 },
+    }),
   },
   fotoContainer: {
     width: "100%",
-    height: 150,
+    height: 180,
     borderRadius: 12,
     backgroundColor: "#f8f9fa",
     borderStyle: "dashed",
@@ -372,7 +430,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginTop: 5,
   },
-  fotoPreview: { width: "100%", height: "100%" },
+  fotoPreview: { width: "100%", height: "100%", resizeMode: "cover" },
   labelSection: {
     fontSize: 11,
     fontWeight: "800",
@@ -406,11 +464,12 @@ const styles = StyleSheet.create({
   },
   inputDisabled: {
     color: "#95a5a6",
-    backgroundColor: "#fcfcfc",
+    backgroundColor: "#f9f9f9",
     borderBottomColor: "transparent",
   },
   btnIconInput: { padding: 5 },
   divider: { height: 1, backgroundColor: "#f0f0f0", marginVertical: 15 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 20 },
   marketScroll: { flexDirection: "row", marginBottom: 20 },
   marketChip: {
     backgroundColor: "#f8f9fa",
@@ -418,6 +477,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     marginRight: 8,
+    marginBottom: 5,
     borderWidth: 1,
     borderColor: "#eee",
   },
@@ -437,25 +497,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffd7d7",
   },
-  textArea: {
-    height: 60,
-    textAlignVertical: "top",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    marginBottom: 10,
-  },
+  textArea: { height: 60, textAlignVertical: "top" },
   btnSalvar: {
     backgroundColor: "#27ae60",
-    padding: 16,
+    padding: 18,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 20,
-    elevation: 3,
   },
   btnSalvarTexto: {
     color: "#fff",
     fontWeight: "bold",
-    fontSize: 15,
+    fontSize: 16,
     letterSpacing: 1,
   },
 });
