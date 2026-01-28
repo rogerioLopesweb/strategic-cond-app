@@ -1,27 +1,38 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router"; // 1. Importar o router
 import React from "react";
 import {
-    FlatList,
-    Platform,
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Platform,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { COLORS } from "../src/constants/theme";
 import { useAuthContext } from "../src/context/AuthContext";
 
 export default function SelecaoCondominio() {
   const { user, selecionarCondominio } = useAuthContext();
+  const router = useRouter(); // 2. Inicializar o router
 
-  // Filtra o primeiro nome para a saudação
   const primeiroNome = user?.nome.split(" ")[0] || "Usuário";
+
+  // 3. Criar uma função para lidar com o clique
+  const handleSelect = async (id: string) => {
+    try {
+      await selecionarCondominio(id); // Atualiza o estado global
+      router.replace("/home"); // Força a ida para a home
+    } catch (error) {
+      console.error("Erro ao selecionar condomínio:", error);
+    }
+  };
 
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => selecionarCondominio(item.id)}
+      onPress={() => handleSelect(item.id)} // 4. Usar a nova função
       activeOpacity={0.7}
     >
       <View style={styles.cardContent}>
@@ -59,7 +70,7 @@ export default function SelecaoCondominio() {
 
         <FlatList
           data={user?.condominios}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}

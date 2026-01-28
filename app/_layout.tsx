@@ -17,16 +17,15 @@ function RootLayoutNav() {
     const isAtSelecao = segments[0] === "selecao-condominio";
 
     if (user) {
-      // CENÁRIO A: Logado, mas sem condomínio ativo (Multi-condomínio)
-      // Se user.condominios não existir ou for vazio, a proteção do AuthContext deve atuar,
-      // mas aqui garantimos que ele não fique num limbo.
+      // Se NÃO tem condomínio ativo e tem vários, obriga a selecionar
       if (!condominioAtivo && user.condominios?.length > 1) {
         if (!isAtSelecao) {
           router.replace("/selecao-condominio");
         }
       }
-      // CENÁRIO B: Logado e com condomínio definido (ou Seleção concluída)
-      else if (condominioAtivo && (isAtLogin || isAtSelecao)) {
+      // Se JÁ TEM condomínio e está na tela de LOGIN, manda para HOME
+      // Mas removemos o 'isAtSelecao' daqui para permitir que ele fique na tela de seleção
+      else if (condominioAtivo && isAtLogin) {
         router.replace("/home");
       }
     }

@@ -117,8 +117,8 @@ export default function Home() {
             />
           )}
 
-          {/* BOTÃO ADMIN EXCLUSIVO WEB (Se necessário futuramente) */}
-          {Platform.OS === "web" && !isMorador && (
+          {/* Platform.OS === "web" &&  BOTÃO ADMIN EXCLUSIVO WEB (Se necessário futuramente) */}
+          {!isMorador && (
             <BotaoAcao
               titulo="Painel Administrativo"
               subTitulo="Gestão estratégica do condomínio"

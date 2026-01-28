@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router"; // Importar o router para navegar
 import React from "react";
 import {
   Modal,
@@ -27,10 +28,20 @@ export default function SideMenu({
   onLogout,
   userData,
 }: SideMenuProps) {
-  // Verificação de segurança para não quebrar se os dados demorarem a carregar
+  const router = useRouter();
+
   if (!userData || !userData.user) return null;
 
   const { user, condominioAtivo } = userData;
+
+  // Lógica para verificar se existe mais de um condomínio vinculado
+  const possuiVariosCondominios =
+    user?.condominios && user.condominios.length > 1;
+
+  const handleTrocarCondominio = () => {
+    onClose(); // Fecha o menu primeiro
+    router.push("/selecao-condominio"); // Ajuste para sua rota de seleção
+  };
 
   return (
     <Modal
@@ -41,14 +52,12 @@ export default function SideMenu({
     >
       <View style={styles.overlay}>
         <SafeAreaView style={styles.menuContainer}>
-          {/* Botão Fechar (X) */}
           <View style={styles.headerMenu}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={30} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
 
-          {/* Informações do Usuário */}
           <View style={styles.content}>
             <View style={styles.avatarCircle}>
               <Ionicons name="person" size={40} color={COLORS.primary} />
@@ -58,6 +67,21 @@ export default function SideMenu({
             <Text style={styles.value}>
               {condominioAtivo?.nome || "Não selecionado"}
             </Text>
+
+            {/* BOTÃO TROCAR CONDOMÍNIO (Só aparece se tiver mais de um) */}
+            {possuiVariosCondominios && (
+              <TouchableOpacity
+                style={styles.changeCondoBtn}
+                onPress={handleTrocarCondominio}
+              >
+                <Ionicons
+                  name="swap-horizontal"
+                  size={16}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.changeCondoText}>Trocar Condomínio</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.divider} />
 
@@ -77,14 +101,12 @@ export default function SideMenu({
             </View>
           </View>
 
-          {/* Rodapé / Sair */}
           <TouchableOpacity style={styles.footer} onPress={onLogout}>
             <Ionicons name="log-out-outline" size={24} color="#e74c3c" />
             <Text style={styles.logoutText}>Sair do Aplicativo</Text>
           </TouchableOpacity>
         </SafeAreaView>
 
-        {/* Área clicável fora para fechar */}
         <TouchableOpacity style={styles.outside} onPress={onClose} />
       </View>
     </Modal>
@@ -145,6 +167,20 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: "600",
     marginTop: 4,
+  },
+  // NOVOS ESTILOS PARA O BOTÃO TROCAR
+  changeCondoBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+    paddingVertical: 5,
+  },
+  changeCondoText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: "bold",
+    marginLeft: 5,
+    textDecorationLine: "underline",
   },
   divider: {
     height: 1,

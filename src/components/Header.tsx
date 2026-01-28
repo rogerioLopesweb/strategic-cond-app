@@ -62,7 +62,7 @@ export default function Header({
               />
             </TouchableOpacity>
             <View>
-              <Text style={styles.brandText}>STRATEGICCOND</Text>
+              <Text style={styles.brandText}>StrategicCond</Text>
               <Text style={styles.condoText} numberOfLines={1}>
                 {condominioAtivo?.nome || "Condomínio"}
               </Text>
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: Platform.OS === "ios" ? 55 : 20,
-    paddingBottom: 15,
+    paddingBottom: 12,
     paddingHorizontal: 20,
     backgroundColor: "#2c3e50",
   },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
   },
   condoText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: "700",
   },
   timeBadge: {
@@ -151,13 +151,13 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: "#fff",
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: "800",
   },
   contextBar: {
     backgroundColor: COLORS.primary, // Cor azul principal (Parte 2)
     paddingTop: 15,
-    paddingBottom: 30,
+    paddingBottom: 10,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 35,
     borderBottomRightRadius: 35,
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     color: "#fff",
-    fontSize: 26,
+    fontSize: 16,
     fontWeight: "900",
     textAlign: "center",
     letterSpacing: -0.5,

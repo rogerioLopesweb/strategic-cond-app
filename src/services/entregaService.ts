@@ -2,19 +2,14 @@ import { api } from "./api";
 
 /**
  * Service especializado na gestão de encomendas e logística de portaria.
- * Interface com o backend para operações de CRUD, Baixa Manual, QR Code e Auditoria.
  */
 export const entregaService = {
   // ============================================================
   // BLOCO 1: OPERAÇÕES DE CADASTRO E CONSULTA (CRUD)
   // ============================================================
 
-  /**
-   * Registra a entrada de uma nova encomenda no sistema.
-   * Agora exige o condominio_id para garantir a integridade Multi-Tenant.
-   */
   registrar: async (dados: {
-    condominio_id: string; // Obrigatório na nova arquitetura
+    condominio_id: string; // ✅ Já estava OK
     unidade: string;
     bloco: string;
     morador_id?: string;
@@ -35,12 +30,8 @@ export const entregaService = {
     }
   },
 
-  /**
-   * Lista entregas filtradas.
-   * O condominio_id é crucial para separar os dados no SaaS.
-   */
   listar: async (filtros: {
-    condominio_id: string; // Filtro mestre
+    condominio_id: string; // ✅ Já estava OK
     pagina?: number;
     limite?: number;
     status?: string;
@@ -52,8 +43,6 @@ export const entregaService = {
       const response = await api.get("/api/entregas", {
         params: filtros,
       });
-
-      // Mapeia a estrutura de dados vinda do backend (Paginada)
       return {
         success: true,
         data: response.data.data || [],
@@ -67,12 +56,10 @@ export const entregaService = {
     }
   },
 
-  /**
-   * Atualiza dados de um volume existente (Auditoria 360).
-   */
   atualizar: async (
     id: string,
     dados: {
+      condominio_id: string; // ✅ Já estava OK
       tipo_embalagem?: string;
       marketplace?: string;
       retirada_urgente?: boolean;
@@ -82,10 +69,7 @@ export const entregaService = {
   ) => {
     try {
       const response = await api.put(`/api/entregas/${id}`, dados);
-      return {
-        success: true,
-        data: response.data.entrega,
-      };
+      return { success: true, data: response.data.entrega };
     } catch (error: any) {
       return {
         success: false,
@@ -96,10 +80,12 @@ export const entregaService = {
 
   /**
    * CANCELAMENTO LOGÍSTICO (Auditoria)
+   * INCLUÍDO: condominio_id para segurança
    */
-  cancelar: async (id: string, motivo: string) => {
+  cancelar: async (id: string, condominio_id: string, motivo: string) => {
     try {
       const response = await api.patch(`/api/entregas/${id}/cancelar`, {
+        condominio_id, // ✅ Adicionado
         motivo_cancelamento: motivo,
       });
       return { success: true, data: response.data };
@@ -117,16 +103,18 @@ export const entregaService = {
 
   /**
    * Registra a retirada física da encomenda.
+   * INCLUÍDO: condominio_id para evitar baixa em condomínio errado
    */
   registrarSaidaManual: async (
     id: string,
+    condominio_id: string, // ✅ Adicionado
     dados: { quem_retirou: string; documento_retirou: string },
   ) => {
     try {
-      const response = await api.patch(
-        `/api/entregas/${id}/saida-manual`,
-        dados,
-      );
+      const response = await api.patch(`/api/entregas/${id}/saida-manual`, {
+        ...dados,
+        condominio_id, // ✅ Adicionado no corpo da requisição
+      });
       return { success: true, data: response.data };
     } catch (error: any) {
       return {
@@ -138,10 +126,13 @@ export const entregaService = {
 
   /**
    * Realiza a baixa automatizada via QR Code.
+   * INCLUÍDO: condominio_id como parâmetro de validação
    */
-  registrarSaidaQRCode: async (id: string) => {
+  registrarSaidaQRCode: async (id: string, condominio_id: string) => {
     try {
-      const response = await api.patch(`/api/entregas/${id}/saida-qrcode`);
+      const response = await api.patch(`/api/entregas/${id}/saida-qrcode`, {
+        condominio_id, // ✅ Adicionado para o backend validar se o QR pertence ao prédio
+      });
       return { success: true, data: response.data };
     } catch (error: any) {
       return {
