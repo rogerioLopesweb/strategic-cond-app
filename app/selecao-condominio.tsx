@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router"; // 1. Importar o router
+import { useRouter } from "expo-router";
 import React from "react";
 import {
   FlatList,
@@ -10,29 +10,43 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { COLORS } from "../src/constants/theme";
-import { useAuthContext } from "../src/context/AuthContext";
+
+// ✅ Importações modulares
+import { COLORS, SHADOWS, SIZES } from "../src/modules/common/constants/theme";
+import {
+  ICondominio,
+  useAuthContext,
+} from "../src/modules/common/context/AuthContext";
 
 export default function SelecaoCondominio() {
-  const { user, selecionarCondominio } = useAuthContext();
-  const router = useRouter(); // 2. Inicializar o router
+  // ✅ Incluído authLogout das ações do contexto
+  const { authUser, authSelecionarCondominio, authLogout } = useAuthContext();
+  const router = useRouter();
 
-  const primeiroNome = user?.nome.split(" ")[0] || "Usuário";
+  const primeiroNome = authUser?.nome?.split(" ")[0] || "Usuário";
 
-  // 3. Criar uma função para lidar com o clique
   const handleSelect = async (id: string) => {
     try {
-      await selecionarCondominio(id); // Atualiza o estado global
-      router.replace("/home"); // Força a ida para a home
+      await authSelecionarCondominio(id);
+      router.replace("/home");
     } catch (error) {
       console.error("Erro ao selecionar condomínio:", error);
     }
   };
 
-  const renderItem = ({ item }: { item: any }) => (
+  const handleLogout = async () => {
+    try {
+      await authLogout();
+      // O _layout.tsx redirecionará para o login automaticamente ao detectar authSigned: false
+    } catch (error) {
+      console.error("Erro ao sair:", error);
+    }
+  };
+
+  const renderItem = ({ item }: { item: ICondominio }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => handleSelect(item.id)} // 4. Usar a nova função
+      onPress={() => handleSelect(item.id)}
       activeOpacity={0.7}
     >
       <View style={styles.cardContent}>
@@ -49,7 +63,7 @@ export default function SelecaoCondominio() {
           </View>
         </View>
 
-        <Ionicons name="chevron-forward" size={20} color="#BDC3C7" />
+        <Ionicons name="chevron-forward" size={20} color={COLORS.grey300} />
       </View>
     </TouchableOpacity>
   );
@@ -57,7 +71,17 @@ export default function SelecaoCondominio() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.innerContainer}>
+        {/* Header com Botão Sair */}
         <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={handleLogout}
+            activeOpacity={0.6}
+          >
+            <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
+            <Text style={styles.logoutText}>Sair</Text>
+          </TouchableOpacity>
+
           <View style={styles.avatarMini}>
             <Ionicons name="person" size={20} color={COLORS.primary} />
           </View>
@@ -69,11 +93,16 @@ export default function SelecaoCondominio() {
         </View>
 
         <FlatList
-          data={user?.condominios}
+          data={authUser?.condominios}
           keyExtractor={(item) => item.id.toString()}
           renderItem={renderItem}
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              Nenhum condomínio vinculado a este usuário.
+            </Text>
+          }
         />
 
         <View style={styles.footer}>
@@ -89,42 +118,58 @@ export default function SelecaoCondominio() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4F7F6",
+    backgroundColor: COLORS.background,
   },
   innerContainer: {
     flex: 1,
     width: "100%",
-    maxWidth: 600, // Centraliza e limita largura na Web
+    maxWidth: 600,
     alignSelf: "center",
   },
   header: {
     paddingHorizontal: 25,
-    paddingTop: Platform.OS === "web" ? 50 : 30,
+    paddingTop: Platform.OS === "web" ? 30 : 20,
     paddingBottom: 20,
     alignItems: "center",
+    position: "relative", // Para o botão de logout
+  },
+  logoutBtn: {
+    position: "absolute",
+    right: 20,
+    top: Platform.OS === "web" ? 30 : 20,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.white,
+    ...SHADOWS.light,
+  },
+  logoutText: {
+    marginLeft: 5,
+    fontSize: 14,
+    fontWeight: "600",
+    color: COLORS.error,
   },
   avatarMini: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 15,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
+    marginTop: 10,
+    ...SHADOWS.light,
   },
   saudacao: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#2C3E50",
+    color: COLORS.textMain,
     textAlign: "center",
   },
   instrucao: {
     fontSize: 14,
-    color: "#7F8C8D",
+    color: COLORS.textSecondary,
     textAlign: "center",
     marginTop: 8,
     lineHeight: 20,
@@ -134,24 +179,22 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
+  emptyText: {
+    textAlign: "center",
+    marginTop: 20,
+    color: COLORS.textLight,
+  },
   card: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
     marginBottom: 15,
     padding: 18,
+    ...SHADOWS.medium,
     ...Platform.select({
       web: {
         cursor: "pointer",
-        transition: "transform 0.2s ease",
-      },
-      default: {
-        elevation: 4,
-      },
+      } as any,
     }),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
   },
   cardContent: {
     flexDirection: "row",
@@ -161,7 +204,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 12,
-    backgroundColor: "#F0F7FF",
+    backgroundColor: COLORS.grey100,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -172,11 +215,11 @@ const styles = StyleSheet.create({
   condoNome: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#2C3E50",
+    color: COLORS.textMain,
   },
   perfilBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "#EBEDEF",
+    backgroundColor: COLORS.grey200,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
@@ -193,7 +236,7 @@ const styles = StyleSheet.create({
   },
   footerTexto: {
     fontSize: 12,
-    color: "#BDC3C7",
+    color: COLORS.textLight,
     fontWeight: "500",
   },
 });

@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -14,25 +13,33 @@ import {
   View,
 } from "react-native";
 
-import { FeedbackModal } from "@/src/components/common/FeedbackModal";
-import { ModalBaixaManual } from "@/src/components/entregas/ModalBaixaManual";
-import { ModalCancelarEntrega } from "@/src/components/entregas/ModalCancelarEntrega";
-import { ModalDetalhesEntrega } from "@/src/components/entregas/ModalDetalhesEntrega";
-import Header from "@/src/components/Header";
-import { COLORS } from "@/src/constants/theme";
-import { useAuthContext } from "@/src/context/AuthContext";
-import { entregaService } from "@/src/services/entregaService";
+// ✅ Imports Modulares
+import { FeedbackModal } from "../../src/modules/common/components/FeedbackModal";
+import { Header } from "../../src/modules/common/components/Header";
+import {
+  COLORS,
+  SHADOWS,
+  SIZES,
+} from "../../src/modules/common/constants/theme";
+import { useAuthContext } from "../../src/modules/common/context/AuthContext";
+import { useEntregas } from "../../src/modules/entregas";
+import { ModalBaixaManual } from "../../src/modules/entregas/components/ModalBaixaManual";
+import { ModalCancelarEntrega } from "../../src/modules/entregas/components/ModalCancelarEntrega";
+import { ModalDetalhesEntrega } from "../../src/modules/entregas/components/ModalDetalhesEntrega";
 
 export default function ListaEntregas() {
-  const { condominioAtivo, isMorador, loading: authLoading } = useAuthContext();
+  const { authSessao, authLoading } = useAuthContext();
   const router = useRouter();
   const { width } = useWindowDimensions();
 
-  // LÓGICA DE COLUNAS RESPONSIVAS
+  // ✅ Hook de Entregas
+  const { listarEntregas, baixarEntregaManual, entregasLoading } =
+    useEntregas();
+
   const numColumns = width > 1024 ? 4 : width > 768 ? 3 : 2;
 
   const [entregas, setEntregas] = useState<any[]>([]);
-  const [carregando, setCarregando] = useState(false);
+  const [carregandoLocal, setCarregandoLocal] = useState(false);
 
   // Filtros
   const [filtroUnidade, setFiltroUnidade] = useState("");
@@ -40,7 +47,7 @@ export default function ListaEntregas() {
   const [statusFiltro, setStatusFiltro] = useState<string>("recebido");
   const [filtroUrgente, setFiltroUrgente] = useState(false);
 
-  // Modais
+  // Modais e Seleção
   const [modalVisible, setModalVisible] = useState(false);
   const [modalBaixaVisible, setModalBaixaVisible] = useState(false);
   const [modalCancelarVisible, setModalCancelarVisible] = useState(false);
@@ -50,51 +57,53 @@ export default function ListaEntregas() {
 
   const [modalFeedback, setModalFeedback] = useState({
     visible: false,
-    type: "success" as any,
+    type: "success" as "success" | "error" | "warning" | "confirm",
     title: "",
     message: "",
   });
 
-  // FUNÇÃO DE CARGA DE DADOS CORRIGIDA
+  // ✅ 1. Função de carga memorizada (Estabilizada)
   const carregarDados = useCallback(async () => {
-    // Se o Auth ainda está carregando ou não temos condomínio ativo, abortamos
-    if (authLoading || !condominioAtivo?.id) {
-      setEntregas([]);
-      return;
-    }
+    if (authLoading || !authSessao?.condominio?.id) return;
 
-    setCarregando(true);
-    try {
-      const res = await entregaService.listar({
-        pagina: 1,
-        limite: 100,
-        status: statusFiltro,
-        unidade: filtroUnidade,
-        bloco: filtroBloco,
-        retirada_urgente: filtroUrgente,
-        condominio_id: condominioAtivo.id, // ID dinâmico vindo do contexto
-      });
+    setCarregandoLocal(true);
+    const res = await listarEntregas({
+      pagina: 1,
+      limite: 100,
+      status: statusFiltro,
+      unidade: filtroUnidade,
+      bloco: filtroBloco,
+      retirada_urgente: filtroUrgente,
+      condominio_id: authSessao.condominio.id,
+    });
 
-      if (res.success) {
-        setEntregas(Array.isArray(res.data) ? res.data : []);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar lista de entregas:", error);
-    } finally {
-      setCarregando(false);
+    // ✅ LOG 1: Veja aqui o que o servidor está enviando no array
+    console.log(
+      "📡 [API RESPONSE] Lista de Entregas:",
+      JSON.stringify(res.data, null, 2),
+    );
+
+    if (res.success) {
+      setEntregas(Array.isArray(res.data) ? res.data : []);
     }
+    setCarregandoLocal(false);
   }, [
-    condominioAtivo,
+    authSessao?.condominio?.id,
     statusFiltro,
     filtroUnidade,
     filtroBloco,
     filtroUrgente,
     authLoading,
+    // listarEntregas removido daqui para evitar o loop de identidade do hook
   ]);
 
-  // Efeito que reage a qualquer mudança de filtro ou troca de condomínio
+  // ✅ 2. useEffect com Debounce (A solução do Loop)
   useEffect(() => {
-    carregarDados();
+    const delayDebounceFn = setTimeout(() => {
+      carregarDados();
+    }, 400); // Aguarda 400ms antes de disparar a busca
+
+    return () => clearTimeout(delayDebounceFn);
   }, [carregarDados]);
 
   const handleAbrirBaixaManual = () => {
@@ -104,11 +113,12 @@ export default function ListaEntregas() {
 
   const handleConfirmarBaixa = async (dados: any) => {
     if (!entregaSelecionada) return;
-    setCarregando(true);
-    const res = await entregaService.registrarSaidaManual(
-      entregaSelecionada.id,
-      dados,
-    );
+
+    const res = await baixarEntregaManual({
+      id: entregaSelecionada.id,
+      ...dados,
+    });
+
     if (res.success) {
       setModalBaixaVisible(false);
       setModalFeedback({
@@ -119,7 +129,6 @@ export default function ListaEntregas() {
       });
       carregarDados();
     }
-    setCarregando(false);
   };
 
   const renderItem = ({ item }: { item: any }) => {
@@ -128,14 +137,14 @@ export default function ListaEntregas() {
     const isUrgente = item.retirada_urgente === true;
 
     let statusColor = isPendente
-      ? "#f39c12"
+      ? COLORS.warning
       : isCancelada
-        ? "#95a5a6"
+        ? COLORS.textLight
         : COLORS.success;
     const badgeBg = isPendente
       ? "#fef5e7"
       : isCancelada
-        ? "#f2f2f2"
+        ? COLORS.grey100
         : "#e8f5e9";
 
     return (
@@ -146,7 +155,7 @@ export default function ListaEntregas() {
           isPendente && { borderColor: statusColor, borderWidth: 0.5 },
           isUrgente &&
             !isCancelada && {
-              borderColor: "#e74c3c",
+              borderColor: COLORS.error,
               borderWidth: 1.5,
               backgroundColor: "#fffafa",
             },
@@ -158,7 +167,7 @@ export default function ListaEntregas() {
       >
         {isUrgente && !isCancelada && (
           <View style={styles.tagUrgente}>
-            <Ionicons name="flash" size={10} color="#fff" />
+            <Ionicons name="flash" size={10} color={COLORS.white} />
             <Text style={styles.tagUrgenteTexto}>URGENTE</Text>
           </View>
         )}
@@ -183,10 +192,7 @@ export default function ListaEntregas() {
           </View>
         </View>
         <View
-          style={[
-            styles.statusContainer,
-            { borderTopColor: isPendente ? "#fdebd0" : "#d4efdf" },
-          ]}
+          style={[styles.statusContainer, { borderTopColor: COLORS.border }]}
         >
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusLabel, { color: statusColor }]}>
@@ -199,11 +205,10 @@ export default function ListaEntregas() {
 
   return (
     <View style={styles.safeContainer}>
-      {/* O Header fica fora do wrapper para ocupar 100% da largura na Web */}
       <Header
-        tituloPagina="Portaria & Encomendas" // Ou "Painel de Controle"
-        breadcrumb={["Encomendas", "Lista"]} // Vazio pois é a raiz
-        showBack={true} // Na Home não faz sentido ter botão voltar
+        tituloPagina="Portaria & Encomendas"
+        breadcrumb={["Encomendas", "Lista"]}
+        showBack={true}
       />
 
       <View style={styles.contentWrapper}>
@@ -221,7 +226,7 @@ export default function ListaEntregas() {
                 style={styles.input}
                 value={filtroUnidade}
                 onChangeText={setFiltroUnidade}
-                keyboardType="numeric"
+                editable={!entregasLoading}
               />
             </View>
             <View
@@ -239,6 +244,7 @@ export default function ListaEntregas() {
                 value={filtroBloco}
                 onChangeText={setFiltroBloco}
                 autoCapitalize="characters"
+                editable={!entregasLoading}
               />
             </View>
           </View>
@@ -247,14 +253,18 @@ export default function ListaEntregas() {
             <TouchableOpacity
               style={[
                 styles.filterBtnUrgente,
-                filtroUrgente && { backgroundColor: "#e74c3c" },
+                filtroUrgente && {
+                  backgroundColor: COLORS.error,
+                  borderColor: COLORS.error,
+                },
               ]}
               onPress={() => setFiltroUrgente(!filtroUrgente)}
+              disabled={entregasLoading}
             >
               <Text
                 style={[
                   styles.filterTextUrgente,
-                  filtroUrgente && { color: "#fff" },
+                  filtroUrgente && { color: COLORS.white },
                 ]}
               >
                 🔥 URG.
@@ -262,9 +272,9 @@ export default function ListaEntregas() {
             </TouchableOpacity>
 
             {[
-              { id: "recebido", label: "PENDENTES", color: "#f39c12" },
+              { id: "recebido", label: "PENDENTES", color: COLORS.warning },
               { id: "entregue", label: "ENTREGUES", color: COLORS.success },
-              { id: "cancelada", label: "CANCELADAS", color: "#95a5a6" },
+              { id: "cancelada", label: "CANCELADAS", color: COLORS.textLight },
             ].map((s) => (
               <TouchableOpacity
                 key={s.id}
@@ -276,11 +286,12 @@ export default function ListaEntregas() {
                   },
                 ]}
                 onPress={() => setStatusFiltro(s.id)}
+                disabled={entregasLoading}
               >
                 <Text
                   style={[
                     styles.filterText,
-                    statusFiltro === s.id && { color: "#fff" },
+                    statusFiltro === s.id && { color: COLORS.white },
                   ]}
                 >
                   {s.label}
@@ -298,12 +309,19 @@ export default function ListaEntregas() {
           numColumns={numColumns}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={carregando} onRefresh={carregarDados} />
+            <RefreshControl
+              refreshing={entregasLoading || carregandoLocal}
+              onRefresh={carregarDados}
+            />
           }
           ListEmptyComponent={
-            !carregando ? (
+            !(entregasLoading || carregandoLocal) ? (
               <View style={styles.emptyBox}>
-                <Ionicons name="cube-outline" size={50} color="#ddd" />
+                <Ionicons
+                  name="cube-outline"
+                  size={50}
+                  color={COLORS.grey200}
+                />
                 <Text style={styles.emptyText}>
                   Nenhuma encomenda encontrada.
                 </Text>
@@ -344,16 +362,14 @@ export default function ListaEntregas() {
           setModalVisible(true);
         }}
         onConfirm={handleConfirmarBaixa}
-        loading={carregando}
+        loading={entregasLoading}
       />
-
       <ModalCancelarEntrega
         visible={modalCancelarVisible}
         onClose={() => setModalCancelarVisible(false)}
         onConfirm={carregarDados}
-        loading={carregando}
+        loading={entregasLoading}
       />
-
       <FeedbackModal
         {...modalFeedback}
         onClose={() => setModalFeedback({ ...modalFeedback, visible: false })}
@@ -362,8 +378,9 @@ export default function ListaEntregas() {
   );
 }
 
+// ... styles idênticos aos anteriores
 const styles = StyleSheet.create({
-  safeContainer: { flex: 1, backgroundColor: "#f4f7f6" },
+  safeContainer: { flex: 1, backgroundColor: COLORS.background },
   contentWrapper: {
     width: "100%",
     maxWidth: 1350,
@@ -371,62 +388,61 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   filtroWrapper: {
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     padding: 12,
     marginHorizontal: 10,
     marginTop: 10,
-    borderRadius: 12,
-    ...Platform.select({
-      web: { shadowOpacity: 0.1, shadowRadius: 10 },
-      default: { elevation: 3 },
-    }),
+    borderRadius: SIZES.radius,
+    ...SHADOWS.light,
   },
   searchRow: { flexDirection: "row", marginBottom: 10 },
   inputContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.grey100,
     borderRadius: 8,
     height: 40,
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: COLORS.border,
   },
-  input: { flex: 1, paddingHorizontal: 10, fontSize: 13 },
+  input: {
+    flex: 1,
+    paddingHorizontal: 10,
+    fontSize: 13,
+    color: COLORS.textMain,
+  },
   filterBar: { flexDirection: "row", justifyContent: "space-between" },
   filterBtn: {
     flex: 1,
     marginHorizontal: 2,
     paddingVertical: 8,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     borderRadius: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: COLORS.border,
   },
   filterBtnUrgente: {
     flex: 0.6,
     marginHorizontal: 2,
     paddingVertical: 8,
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     borderRadius: 8,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e74c3c",
+    borderColor: COLORS.error,
   },
   filterText: { fontSize: 8, fontWeight: "bold", color: COLORS.textLight },
-  filterTextUrgente: { fontSize: 8, fontWeight: "bold", color: "#e74c3c" },
+  filterTextUrgente: { fontSize: 8, fontWeight: "bold", color: COLORS.error },
   list: { padding: 6, paddingBottom: 50 },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     margin: 6,
-    borderRadius: 12,
+    borderRadius: SIZES.radius,
     padding: 12,
     minHeight: 160,
-    ...Platform.select({
-      web: { cursor: "pointer", shadowOpacity: 0.05 },
-      default: { elevation: 2 },
-    }),
+    ...SHADOWS.light,
     justifyContent: "space-between",
   },
   cardHeader: { marginBottom: 5 },
@@ -439,9 +455,13 @@ const styles = StyleSheet.create({
     color: COLORS.textMain,
     textAlign: "center",
   },
-  tipoEmbalagemCard: { fontSize: 10, color: "#7f8c8d", marginTop: 2 },
+  tipoEmbalagemCard: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
   tipoBadge: {
-    backgroundColor: "#eef2f7",
+    backgroundColor: COLORS.grey100,
     borderRadius: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -452,7 +472,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -8,
     right: 10,
-    backgroundColor: "#e74c3c",
+    backgroundColor: COLORS.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
@@ -461,7 +481,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tagUrgenteTexto: {
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 8,
     fontWeight: "bold",
     marginLeft: 2,
@@ -476,5 +496,5 @@ const styles = StyleSheet.create({
   statusDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
   statusLabel: { fontSize: 10, fontWeight: "800" },
   emptyBox: { alignItems: "center", marginTop: 80 },
-  emptyText: { color: "#999", marginTop: 10 },
+  emptyText: { color: COLORS.textLight, marginTop: 10 },
 });

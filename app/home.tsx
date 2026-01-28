@@ -1,9 +1,6 @@
-import { ScannerModal } from "@/src/components/entregas/ScannerModal";
-import Header from "@/src/components/Header";
-import { COLORS } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Platform,
   ScrollView,
@@ -13,9 +10,13 @@ import {
   View,
 } from "react-native";
 
-import { useAuthContext } from "@/src/context/AuthContext";
+// ✅ Imports Modulares
+import { Header } from "../src/modules/common/components/Header";
+import { COLORS, SHADOWS, SIZES } from "../src/modules/common/constants/theme";
+import { useAuthContext } from "../src/modules/common/context/AuthContext";
+import { ScannerModal } from "../src/modules/entregas/components/ScannerModal";
 
-interface BotaoAcaoProps {
+interface IBotaoAcaoProps {
   titulo: string;
   subTitulo: string;
   icone: keyof typeof Ionicons.glyphMap;
@@ -31,15 +32,11 @@ const BotaoAcao = ({
   cor,
   rota,
   onPress,
-}: BotaoAcaoProps) => {
+}: IBotaoAcaoProps) => {
   const router = useRouter();
-
   const handlePress = () => {
-    if (onPress) {
-      onPress();
-    } else if (rota) {
-      router.push(rota as any);
-    }
+    if (onPress) onPress();
+    else if (rota) router.push(rota as any);
   };
 
   return (
@@ -49,13 +46,13 @@ const BotaoAcao = ({
       activeOpacity={0.7}
     >
       <View style={[styles.iconeContainer, { backgroundColor: cor }]}>
-        <Ionicons name={icone} size={28} color="#fff" />
+        <Ionicons name={icone} size={28} color={COLORS.white} />
       </View>
       <View style={styles.textoContainer}>
         <Text style={styles.tituloAcao}>{titulo}</Text>
         <Text style={styles.subTituloAcao}>{subTitulo}</Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#bdc3c7" />
+      <Ionicons name="chevron-forward" size={20} color={COLORS.grey300} />
     </TouchableOpacity>
   );
 };
@@ -63,29 +60,53 @@ const BotaoAcao = ({
 export default function Home() {
   const router = useRouter();
   const [isScannerVisible, setIsScannerVisible] = useState(false);
-  const { condominioAtivo, user, logout, isMorador } = useAuthContext();
+
+  // ✅ Consumindo a nova estrutura de sessão e o logout padronizado
+  const { authSessao, authLogout } = useAuthContext();
+
+  // ✅ Validação de Poder: Só Admin, Síndico ou Gerente vê o Painel Administrativo
+  const isAdminOuSindico = useMemo(() => {
+    if (!authSessao) return false;
+
+    const perfil = authSessao.condominio.perfil?.toLowerCase() || "";
+    const cargo = authSessao.usuario.cargo?.toLowerCase() || "";
+    const permitidos = [
+      "admin",
+      "administrador",
+      "sindico",
+      "síndico",
+      "gerente",
+    ];
+
+    return permitidos.includes(perfil) || permitidos.includes(cargo);
+  }, [authSessao]);
 
   const handleSignOut = async () => {
-    await logout();
+    await authLogout();
     router.replace("/");
   };
 
+  // Se por algum motivo a sessão cair mas a tela não disparar o redirect do layout imediatamente
+  if (!authSessao) return null;
+
   return (
     <View style={styles.container}>
-      {/* O Header fica fora do wrapper para ocupar 100% da largura na Web */}
       <Header
-        tituloPagina="Painel de Controle" // Ou "Painel de Controle"
-        breadcrumb={[]} // Vazio pois é a raiz
-        showBack={false} // Na Home não faz sentido ter botão voltar
+        tituloPagina="Painel de Controle"
+        breadcrumb={[]}
+        showBack={false}
       />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* WRAPPER RESPONSIVO: Limita o conteúdo a 850px e centraliza */}
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.contentWrapper}>
           <Text style={styles.labelSessao}>
-            {isMorador ? "MINHA ÁREA" : "SERVIÇOS DISPONÍVEIS"}
+            {authSessao.isMorador ? "MINHA ÁREA" : "SERVIÇOS DISPONÍVEIS"}
           </Text>
 
-          {!isMorador && (
+          {!authSessao.isMorador && (
             <BotaoAcao
               titulo="Cadastrar Entrega"
               subTitulo="Registrar novo pacote recebido"
@@ -96,9 +117,11 @@ export default function Home() {
           )}
 
           <BotaoAcao
-            titulo={isMorador ? "Minhas Encomendas" : "Lista de Encomendas"}
+            titulo={
+              authSessao.isMorador ? "Minhas Encomendas" : "Lista de Encomendas"
+            }
             subTitulo={
-              isMorador
+              authSessao.isMorador
                 ? "Veja o que chegou para você"
                 : "Ver, filtrar e gerenciar entregas"
             }
@@ -107,7 +130,7 @@ export default function Home() {
             rota="/entregas/lista-entregas"
           />
 
-          {!isMorador && (
+          {!authSessao.isMorador && (
             <BotaoAcao
               titulo="Ler QR Code"
               subTitulo="Baixa rápida de saída de pacotes"
@@ -117,14 +140,14 @@ export default function Home() {
             />
           )}
 
-          {/* Platform.OS === "web" &&  BOTÃO ADMIN EXCLUSIVO WEB (Se necessário futuramente) */}
-          {!isMorador && (
+          {/* ✅ Botão Admin com Trava de Perfil */}
+          {isAdminOuSindico && (
             <BotaoAcao
               titulo="Painel Administrativo"
               subTitulo="Gestão estratégica do condomínio"
               icone="settings-outline"
-              cor="#34495e"
-              rota="/admin/home"
+              cor={COLORS.primary}
+              rota="/admin/dashboard"
             />
           )}
 
@@ -132,12 +155,13 @@ export default function Home() {
           <Text style={styles.labelSessao}>SISTEMA</Text>
 
           <TouchableOpacity style={styles.botaoSair} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={20} color="#e74c3c" />
+            <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
             <Text style={styles.textoSair}>Sair do Aplicativo</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
-      {!isMorador && (
+
+      {!authSessao.isMorador && (
         <ScannerModal
           visible={isScannerVisible}
           onClose={() => setIsScannerVisible(false)}
@@ -149,14 +173,8 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  // Mágica da centralização e largura limitada
+  container: { flex: 1, backgroundColor: COLORS.background },
+  scrollContent: { flexGrow: 1 },
   contentWrapper: {
     width: "100%",
     maxWidth: 1350,
@@ -166,33 +184,21 @@ const styles = StyleSheet.create({
   labelSessao: {
     fontSize: 12,
     fontWeight: "800",
-    color: "#95a5a6",
+    color: COLORS.textLight,
     marginBottom: 15,
     letterSpacing: 1,
     marginLeft: 5,
   },
   cardAcao: {
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     flexDirection: "row",
     alignItems: "center",
     padding: 15,
-    borderRadius: 16,
+    borderRadius: SIZES.radius,
     marginBottom: 15,
+    ...SHADOWS.light,
     ...Platform.select({
-      web: {
-        cursor: "pointer",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 12,
-      },
-      default: {
-        elevation: 2,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-      },
+      web: { cursor: "pointer" } as any,
     }),
   },
   iconeContainer: {
@@ -202,18 +208,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  textoContainer: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  tituloAcao: { fontSize: 16, fontWeight: "bold", color: "#2c3e50" },
-  subTituloAcao: { fontSize: 12, color: "#7f8c8d", marginTop: 2 },
-  divider: { height: 1, backgroundColor: "#ecf0f1", marginVertical: 20 },
+  textoContainer: { flex: 1, marginLeft: 15 },
+  tituloAcao: { fontSize: 16, fontWeight: "bold", color: COLORS.textMain },
+  subTituloAcao: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 20 },
   botaoSair: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     padding: 15,
   },
-  textoSair: { color: "#e74c3c", fontWeight: "bold", marginLeft: 10 },
+  textoSair: { color: COLORS.error, fontWeight: "bold", marginLeft: 10 },
 });

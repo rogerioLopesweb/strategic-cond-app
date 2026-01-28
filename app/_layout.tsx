@@ -2,38 +2,45 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import { COLORS } from "../src/constants/theme";
-import { AuthProvider, useAuthContext } from "../src/context/AuthContext";
+
+// ✅ Importações ajustadas para a nova estrutura modular
+import { COLORS } from "../src/modules/common/constants/theme";
+import {
+  AuthProvider,
+  useAuthContext,
+} from "../src/modules/common/context/AuthContext";
 
 function RootLayoutNav() {
-  const { user, loading, condominioAtivo } = useAuthContext();
+  // ✅ Agora consumimos estritamente sob a nova convenção
+  const { authSessao, authLoading, authSigned } = useAuthContext();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    if (authLoading) return;
 
-    const isAtLogin = segments.length === 0 || segments[0] === "index";
+    // Identificação de onde o usuário está
+    const isAtLogin =
+      !segments[0] || segments[0] === "index" || segments[0] === "(auth)";
     const isAtSelecao = segments[0] === "selecao-condominio";
 
-    if (user) {
-      // Se NÃO tem condomínio ativo e tem vários, obriga a selecionar
-      if (!condominioAtivo && user.condominios?.length > 1) {
-        if (!isAtSelecao) {
-          router.replace("/selecao-condominio");
-        }
+    if (authSigned) {
+      // REGRA 1: Autenticado mas sem condomínio ativo (authSessao nulo)
+      // Se não estiver na tela de seleção, força a ida para lá.
+      if (!authSessao && !isAtSelecao) {
+        router.replace("/selecao-condominio");
       }
-      // Se JÁ TEM condomínio e está na tela de LOGIN, manda para HOME
-      // Mas removemos o 'isAtSelecao' daqui para permitir que ele fique na tela de seleção
-      else if (condominioAtivo && isAtLogin) {
+      // REGRA 2: Sessão completa (Usuário + Condomínio)
+      // Se tentar voltar pro Login ou Seleção, manda para a Home.
+      else if (authSessao && (isAtLogin || isAtSelecao)) {
         router.replace("/home");
       }
     }
-    // CENÁRIO C: Não logado
+    // REGRA 3: Não autenticado e tentando acessar áreas restritas
     else if (!isAtLogin) {
       router.replace("/");
     }
-  }, [user, condominioAtivo, loading, segments]);
+  }, [authSessao, authSigned, authLoading, segments]);
 
   return (
     <View style={styles.outerContainer}>
@@ -41,16 +48,17 @@ function RootLayoutNav() {
         screenOptions={{
           headerShown: false,
           animation: Platform.OS === "ios" ? "fade" : "fade_from_bottom",
-          // O fundo do conteúdo do Stack segue o tema
           contentStyle: { backgroundColor: COLORS.background },
         }}
       >
         <Stack.Screen name="index" />
         <Stack.Screen name="selecao-condominio" />
         <Stack.Screen name="home" />
+
         <Stack.Screen name="entregas/lista-entregas" />
         <Stack.Screen name="entregas/cadastro" />
-        <Stack.Screen name="admin/home" />
+
+        <Stack.Screen name="admin/dashboard" />
         <Stack.Screen name="admin/importacao" />
       </Stack>
     </View>

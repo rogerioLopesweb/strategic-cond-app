@@ -1,9 +1,3 @@
-import { FeedbackModal } from "@/src/components/common/FeedbackModal";
-import { SeletorMoradores } from "@/src/components/entregas/SeletorMoradores";
-import Header from "@/src/components/Header";
-import { COLORS } from "@/src/constants/theme";
-import { useAuthContext } from "@/src/context/AuthContext";
-import { entregaService } from "@/src/services/entregaService";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -22,21 +16,40 @@ import {
   View,
 } from "react-native";
 
+// ✅ Imports Modulares
+import { FeedbackModal } from "../../src/modules/common/components/FeedbackModal";
+import { Header } from "../../src/modules/common/components/Header";
+import {
+  COLORS,
+  SHADOWS,
+  SIZES,
+} from "../../src/modules/common/constants/theme";
+import { useAuthContext } from "../../src/modules/common/context/AuthContext";
+import { useEntregas } from "../../src/modules/entregas";
+import { SeletorMoradores } from "../../src/modules/entregas/components/SeletorMoradores";
+
 export default function CadastroEntrega() {
   const router = useRouter();
-  const { condominioAtivo } = useAuthContext();
+  const { authSessao } = useAuthContext();
   const params = useLocalSearchParams();
 
-  const isEditing = params.id && params.editar === "true";
-  const [loading, setLoading] = useState(false);
+  const { registrarEntrega, atualizarEntrega, entregasLoading } = useEntregas();
 
-  const [modalConfig, setModalConfig] = useState({
+  const isEditing = params.id && params.editar === "true";
+
+  const [modalConfig, setModalConfig] = useState<{
+    visible: boolean;
+    type: "success" | "error" | "warning" | "confirm";
+    title: string;
+    message: string;
+  }>({
     visible: false,
-    type: "success" as "success" | "error" | "warning" | "confirm",
+    type: "success",
     title: "",
     message: "",
   });
 
+  // Estados do formulário
   const [bloco, setBloco] = useState("");
   const [unidade, setUnidade] = useState("");
   const [destinatario, setDestinatario] = useState("");
@@ -72,7 +85,7 @@ export default function CadastroEntrega() {
       mostrarAviso(
         "error",
         "Permissão Negada",
-        "Precisamos de acesso à câmera para registrar a etiqueta.",
+        "Precisamos de acesso à câmera.",
       );
       return;
     }
@@ -87,31 +100,26 @@ export default function CadastroEntrega() {
   };
 
   const handleSalvar = async () => {
-    // Validação de negócio (Agora aceita letras na unidade)
     if (!bloco.trim() || !unidade.trim() || !moradorIdReal) {
       mostrarAviso(
         "warning",
         "Atenção",
-        "Informe o Bloco, Unidade e selecione o Morador responsável.",
+        "Informe Bloco, Unidade e selecione o Morador.",
       );
       return;
     }
 
-    if (!condominioAtivo?.id) {
-      mostrarAviso(
-        "error",
-        "Erro de Contexto",
-        "Nenhum condomínio selecionado.",
-      );
+    if (!authSessao?.condominio?.id) {
+      mostrarAviso("error", "Erro", "Sessão ou Condomínio não identificado.");
       return;
     }
 
-    setLoading(true);
     const payload = {
-      condominio_id: condominioAtivo.id,
+      id: params.id as string,
+      condominio_id: authSessao.condominio.id,
       morador_id: moradorIdReal,
       codigo_rastreio: codigo.trim(),
-      unidade: unidade.trim().toUpperCase(), // Normaliza para maiúsculas (ex: 101a -> 101A)
+      unidade: unidade.trim().toUpperCase(),
       bloco: bloco.trim().toUpperCase(),
       marketplace,
       tipo_embalagem: tipoEmbalagem,
@@ -120,44 +128,31 @@ export default function CadastroEntrega() {
       foto_base64: fotoBase64,
     };
 
-    try {
-      const result = isEditing
-        ? await entregaService.atualizar(params.id as string, payload)
-        : await entregaService.registrar(payload);
+    const result = isEditing
+      ? await atualizarEntrega(payload)
+      : await registrarEntrega(payload);
 
-      if (result.success) {
-        mostrarAviso(
-          "success",
-          "Sucesso!",
-          isEditing
-            ? "Registro atualizado com sucesso."
-            : "Encomenda registrada e morador notificado!",
-        );
-      } else {
-        mostrarAviso(
-          "error",
-          "Erro ao salvar",
-          result.error || "Tente novamente.",
-        );
-      }
-    } catch (err) {
+    if (result.success) {
+      mostrarAviso(
+        "success",
+        "Sucesso!",
+        isEditing ? "Alterações salvas." : "Encomenda registrada!",
+      );
+    } else {
       mostrarAviso(
         "error",
-        "Falha de Conexão",
-        "Não foi possível falar com o servidor.",
+        "Erro ao salvar",
+        result.error || "Tente novamente.",
       );
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
     <View style={styles.container}>
-      {/* O Header fica fora do wrapper para ocupar 100% da largura na Web */}
       <Header
-        tituloPagina="Portaria & Encomendas" // Ou "Painel de Controle"
-        breadcrumb={["Encomendas", "Cadastro"]} // Vazio pois é a raiz
-        showBack={true} // Na Home não faz sentido ter botão voltar
+        tituloPagina="Cadastro de Encomenda"
+        breadcrumb={["Encomendas", "Novo"]}
+        showBack={true}
       />
 
       <KeyboardAvoidingView
@@ -173,6 +168,7 @@ export default function CadastroEntrega() {
               <TouchableOpacity
                 style={styles.fotoContainer}
                 onPress={tirarFoto}
+                disabled={entregasLoading}
               >
                 {fotoBase64 ? (
                   <Image
@@ -199,8 +195,7 @@ export default function CadastroEntrega() {
                     value={bloco}
                     onChangeText={setBloco}
                     autoCapitalize="characters"
-                    placeholder="Ex: A"
-                    editable={!isEditing}
+                    editable={!isEditing && !entregasLoading}
                   />
                 </View>
                 <View
@@ -212,33 +207,33 @@ export default function CadastroEntrega() {
                     value={unidade}
                     onChangeText={setUnidade}
                     autoCapitalize="characters"
-                    placeholder="Ex: 101-A"
-                    // CORREÇÃO: Removido numeric para aceitar letras
-                    keyboardType="default"
-                    editable={!isEditing}
+                    editable={!isEditing && !entregasLoading}
                   />
                 </View>
               </View>
 
               {!isEditing && (
                 <SeletorMoradores
-                  condominioId={condominioAtivo?.id}
+                  condominioId={authSessao?.condominio?.id}
                   bloco={bloco}
                   unidade={unidade}
                   selecionadoId={moradorIdReal}
-                  onSelecionar={(morador) => {
-                    setMoradorIdReal(morador.usuario_id);
-                    setDestinatario(morador.nome || morador.Nome);
+                  onSelecionar={(m) => {
+                    setMoradorIdReal(m.usuario_id);
+                    setDestinatario(m.nome || "Morador Selecionado");
                   }}
                 />
               )}
 
               <Text style={styles.label}>DESTINATÁRIO</Text>
               <TextInput
-                style={[styles.input, styles.inputDisabled]}
+                style={[
+                  styles.input,
+                  styles.inputDisabled,
+                  { borderBottomColor: "#CCC" },
+                ]}
                 value={destinatario}
                 editable={false}
-                placeholder="Morador será vinculado via seletor"
               />
 
               <View style={styles.divider} />
@@ -246,126 +241,124 @@ export default function CadastroEntrega() {
               <Text style={styles.labelSection}>DADOS DO VOLUME</Text>
 
               <Text style={styles.label}>TIPO DE EMBALAGEM</Text>
-              <View style={styles.chipRow}>
+              <View style={styles.chipsRow}>
                 {["Pacote", "Caixa", "Carta", "Outros"].map((tipo) => (
                   <TouchableOpacity
                     key={tipo}
                     style={[
-                      styles.marketChip,
-                      tipoEmbalagem === tipo && styles.marketChipActive,
+                      styles.chip,
+                      tipoEmbalagem === tipo && styles.chipAtivo,
                     ]}
                     onPress={() => setTipoEmbalagem(tipo)}
+                    disabled={entregasLoading}
                   >
                     <Text
                       style={[
-                        styles.marketText,
-                        tipoEmbalagem === tipo && styles.marketTextActive,
+                        styles.chipText,
+                        tipoEmbalagem === tipo && styles.chipTextAtivo,
                       ]}
                     >
-                      {tipo}
+                      {tipo.toUpperCase()}
                     </Text>
                   </TouchableOpacity>
                 ))}
-              </View>
-
-              <Text style={styles.label}>CÓDIGO DE RASTREIO</Text>
-              <View style={styles.inputRow}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Bipar ou digitar código"
-                  value={codigo}
-                  onChangeText={setCodigo}
-                  autoCapitalize="characters"
-                />
-                <TouchableOpacity style={styles.btnIconInput}>
-                  <Ionicons
-                    name="barcode-outline"
-                    size={24}
-                    color={COLORS.secondary}
-                  />
-                </TouchableOpacity>
               </View>
 
               <Text style={styles.label}>MARKETPLACE / ORIGEM</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.marketScroll}
-              >
+              <View style={styles.chipsRow}>
                 {[
-                  "Mercado Livre",
                   "Amazon",
                   "Shopee",
                   "Shein",
+                  "Mercado Livre",
                   "Ifood",
                   "Outros",
-                ].map((item) => (
+                ].map((origem) => (
                   <TouchableOpacity
-                    key={item}
+                    key={origem}
                     style={[
-                      styles.marketChip,
-                      marketplace === item && styles.marketChipActive,
+                      styles.chip,
+                      marketplace === origem && styles.chipAtivo,
                     ]}
-                    onPress={() => setMarketplace(item)}
+                    onPress={() => setMarketplace(origem)}
+                    disabled={entregasLoading}
                   >
                     <Text
                       style={[
-                        styles.marketText,
-                        marketplace === item && styles.marketTextActive,
+                        styles.chipText,
+                        marketplace === origem && styles.chipTextAtivo,
                       ]}
                     >
-                      {item}
+                      {origem.toUpperCase()}
                     </Text>
                   </TouchableOpacity>
                 ))}
-              </ScrollView>
+              </View>
 
-              <View style={styles.urgenteContainer}>
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Código de Rastreio"
+                  value={codigo}
+                  onChangeText={setCodigo}
+                  autoCapitalize="characters"
+                  editable={!entregasLoading}
+                />
+                <Ionicons
+                  name="barcode-outline"
+                  size={24}
+                  color={COLORS.secondary}
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.urgenteContainer,
+                  urgente && { borderColor: COLORS.error },
+                ]}
+              >
                 <View style={{ flex: 1 }}>
                   <Text
                     style={[
                       styles.label,
-                      {
-                        marginBottom: 0,
-                        color: urgente ? "#c0392b" : COLORS.textLight,
-                      },
+                      { color: urgente ? COLORS.error : COLORS.textLight },
                     ]}
                   >
                     RETIRADA URGENTE?
                   </Text>
                   <Text style={styles.subLabel}>
-                    Sinalizar volume perecível ou frágil
+                    Volumes perecíveis ou frágeis
                   </Text>
                 </View>
                 <Switch
                   value={urgente}
                   onValueChange={setUrgente}
-                  trackColor={{ false: "#ddd", true: "#e74c3c" }}
+                  trackColor={{ false: COLORS.grey300, true: COLORS.error }}
+                  disabled={entregasLoading}
                 />
               </View>
 
-              <Text style={styles.label}>OBSERVAÇÕES ADICIONAIS</Text>
+              <Text style={styles.label}>OBSERVAÇÕES</Text>
               <TextInput
                 style={[styles.input, styles.textArea]}
-                placeholder="Ex: Deixar com o vizinho, caixa amassada, etc."
                 multiline
-                numberOfLines={3}
                 value={obs}
                 onChangeText={setObs}
+                editable={!entregasLoading}
               />
             </View>
 
             <TouchableOpacity
               style={[
                 styles.btnSalvar,
-                urgente && { backgroundColor: "#e74c3c" },
-                loading && { opacity: 0.7 },
+                urgente && { backgroundColor: COLORS.error },
+                entregasLoading && { opacity: 0.7 },
               ]}
               onPress={handleSalvar}
-              disabled={loading}
+              disabled={entregasLoading}
             >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
+              {entregasLoading ? (
+                <ActivityIndicator color={COLORS.white} />
               ) : (
                 <Text style={styles.btnSalvarTexto}>
                   {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR RECEBIMENTO"}
@@ -380,9 +373,8 @@ export default function CadastroEntrega() {
         {...modalConfig}
         onClose={() => {
           setModalConfig((prev) => ({ ...prev, visible: false }));
-          if (modalConfig.type === "success") {
+          if (modalConfig.type === "success")
             router.replace("/entregas/lista-entregas");
-          }
         }}
       />
     </View>
@@ -394,43 +386,36 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, paddingBottom: 40 },
   contentWrapper: {
     width: "100%",
-    maxWidth: 1350,
+    maxWidth: 800,
     alignSelf: "center",
     padding: 15,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 15,
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
     padding: 20,
-    ...Platform.select({
-      web: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 10,
-      },
-      default: { elevation: 4 },
-    }),
+    ...SHADOWS.medium,
   },
   fotoContainer: {
     width: "100%",
     height: 180,
     borderRadius: 12,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: COLORS.grey100,
     borderStyle: "dashed",
     borderWidth: 1,
     borderColor: COLORS.primary,
     marginBottom: 20,
-    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
   },
-  fotoPlaceholder: { flex: 1, justifyContent: "center", alignItems: "center" },
+  fotoPlaceholder: { alignItems: "center" },
   fotoTexto: {
     fontSize: 10,
     fontWeight: "bold",
     color: COLORS.primary,
     marginTop: 5,
   },
-  fotoPreview: { width: "100%", height: "100%", resizeMode: "cover" },
+  fotoPreview: { width: "100%", height: "100%", borderRadius: 12 },
   labelSection: {
     fontSize: 11,
     fontWeight: "800",
@@ -445,16 +430,16 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginBottom: 5,
   },
-  subLabel: { fontSize: 10, color: "#95a5a6" },
+  subLabel: { fontSize: 10, color: COLORS.textSecondary },
   row: { flexDirection: "row", marginBottom: 15 },
-  inputGroup: { borderBottomWidth: 1, borderBottomColor: "#eee" },
+  inputGroup: { borderBottomWidth: 1.5, borderBottomColor: "#A0A0A0" }, // ✅ Borda mais escura cinza
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#A0A0A0",
     marginBottom: 20,
-  },
+  }, // ✅ Borda mais escura cinza
   input: {
     flex: 1,
     paddingVertical: 8,
@@ -463,30 +448,30 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   inputDisabled: {
-    color: "#95a5a6",
-    backgroundColor: "#f9f9f9",
-    borderBottomColor: "transparent",
+    color: COLORS.textLight,
+    backgroundColor: COLORS.grey100,
+    borderBottomColor: COLORS.border,
   },
-  btnIconInput: { padding: 5 },
-  divider: { height: 1, backgroundColor: "#f0f0f0", marginVertical: 15 },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", marginBottom: 20 },
-  marketScroll: { flexDirection: "row", marginBottom: 20 },
-  marketChip: {
-    backgroundColor: "#f8f9fa",
-    paddingHorizontal: 15,
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 15 },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginBottom: 20,
+    marginTop: 5,
+  },
+  chip: {
+    backgroundColor: COLORS.grey100,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 8,
     marginRight: 8,
-    marginBottom: 5,
+    marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#eee",
+    borderColor: "#B0B0B0", // ✅ Borda dos chips também mais definida
   },
-  marketChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  marketText: { fontSize: 11, color: COLORS.textMain },
-  marketTextActive: { color: "#fff", fontWeight: "bold" },
+  chipAtivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  chipText: { fontSize: 10, fontWeight: "bold", color: COLORS.textMain },
+  chipTextAtivo: { color: COLORS.white },
   urgenteContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -497,18 +482,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffd7d7",
   },
-  textArea: { height: 60, textAlignVertical: "top" },
+  textArea: {
+    height: 80,
+    textAlignVertical: "top",
+    borderWidth: 1,
+    borderColor: "#A0A0A0",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 5,
+  }, // ✅ TextArea com borda completa escura
   btnSalvar: {
-    backgroundColor: "#27ae60",
+    backgroundColor: COLORS.success,
     padding: 18,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 20,
   },
-  btnSalvarTexto: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
-    letterSpacing: 1,
-  },
+  btnSalvarTexto: { color: COLORS.white, fontWeight: "bold", fontSize: 16 },
 });
