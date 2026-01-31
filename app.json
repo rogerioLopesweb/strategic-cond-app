@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "com.strategicflow.strategiccond",
+      "googleServicesFile": "./androidgoogle-services.json",
       "versionCode": 1,
       "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {

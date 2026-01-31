@@ -63,11 +63,19 @@ export function useEntregas() {
       ),
 
     // ✅ Padronizado conforme discutido
-    baixarEntregaQRCode: (codigoQR: string) =>
-      execute(
-        () => entregaService.registrarSaidaQRCode(codigoQR),
-        "Erro na baixa via QR Code",
-      ),
+    baixarEntregaQRCode: (codigoQR: string) => {
+      try {
+        // ✅ Converte a string do QR em objeto antes de mandar para o service
+        const dadosObj = JSON.parse(codigoQR);
+        return execute(
+          () => entregaService.registrarSaidaQRCode(dadosObj),
+          "Erro na baixa via QR Code 1",
+        );
+      } catch (err) {
+        // Caso alguém bipa um QR Code que não é JSON (ex: um CPF)
+        console.error("QR Code inválido");
+      }
+    },
 
     listarEntregas: (filtros: IEntregaFiltrosDTO) =>
       execute(() => entregaService.listar(filtros), "Erro ao listar entregas"),

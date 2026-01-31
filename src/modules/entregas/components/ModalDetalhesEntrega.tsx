@@ -8,8 +8,9 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 
 // ✅ Imports modulares e tema
 import { COLORS, SHADOWS } from "../../common/constants/theme";
@@ -63,6 +64,9 @@ export const ModalDetalhesEntrega = ({
             {/* Cabeçalho */}
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
+                {/* ✅ EXIBIÇÃO DO ID PARA AUDITORIA MANUAL */}
+                <Text style={styles.idLabel}>ID: {entrega.id}</Text>
+
                 <View style={styles.rowTitle}>
                   <Text style={styles.modalTitle}>
                     {isCancelada
@@ -71,7 +75,6 @@ export const ModalDetalhesEntrega = ({
                         ? "Minha Encomenda"
                         : "Detalhes da Entrega"}
                   </Text>
-                  {/* ✅ DESTAQUE DE URGÊNCIA NO TOPO */}
                   {entrega.retirada_urgente ? (
                     <View style={styles.badgeUrgenteTopo}>
                       <Ionicons name="flash" size={12} color={COLORS.white} />
@@ -113,33 +116,80 @@ export const ModalDetalhesEntrega = ({
                 </View>
               ) : null}
 
-              {/* ✅ FOTO DA ETIQUETA COM CLIQUE PARA AMPLIAR */}
-              {entrega.url_foto_etiqueta ? (
+              {/* ✅ SEÇÃO MEDIA: FOTO E QR CODE LADO A LADO */}
+              <View style={styles.mediaRow}>
+                {/* Coluna 1: Foto da Etiqueta */}
                 <TouchableOpacity
                   activeOpacity={0.9}
-                  onPress={() => setVerFotoFull(true)}
-                  style={styles.fotoWrapper}
+                  onPress={() =>
+                    entrega.url_foto_etiqueta && setVerFotoFull(true)
+                  }
+                  style={styles.mediaColumn}
                 >
-                  <Image
-                    source={{ uri: entrega.url_foto_etiqueta }}
-                    style={[
-                      styles.fotoEtiqueta,
-                      (isCancelada || isEntregue) && { opacity: 0.5 },
-                    ]}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.zoomHint}>
-                    <Ionicons
-                      name="search-outline"
-                      size={16}
-                      color={COLORS.white}
-                    />
-                    <Text style={styles.zoomText}>CLIQUE PARA AMPLIAR</Text>
-                  </View>
+                  {entrega.url_foto_etiqueta ? (
+                    <>
+                      <Image
+                        source={{ uri: entrega.url_foto_etiqueta }}
+                        style={[
+                          styles.fotoEtiqueta,
+                          (isCancelada || isEntregue) && { opacity: 0.5 },
+                        ]}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.zoomHint}>
+                        <Ionicons
+                          name="search-outline"
+                          size={12}
+                          color={COLORS.white}
+                        />
+                        <Text style={styles.zoomText}>VER FOTO</Text>
+                      </View>
+                    </>
+                  ) : (
+                    <View style={styles.placeholderMedia}>
+                      <Ionicons
+                        name="image-outline"
+                        size={30}
+                        color={COLORS.grey300}
+                      />
+                      <Text style={styles.placeholderText}>SEM FOTO</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
-              ) : null}
 
-              {/* Informações Básicas */}
+                {/* Coluna 2: QR Code Baseado no ID */}
+                <View style={[styles.mediaColumn, styles.qrColumn]}>
+                  {isPendente ? (
+                    <>
+                      <View style={styles.qrWrapper}>
+                        <QRCode
+                          value={JSON.stringify({
+                            id: entrega.id,
+                            condominio_id: authSessao.condominio.id,
+                          })}
+                          size={100}
+                          color="#000000"
+                          backgroundColor="white"
+                        />
+                      </View>
+                      <Text style={styles.qrLabel}>SCAN PARA BAIXA</Text>
+                    </>
+                  ) : (
+                    <View style={styles.statusStatic}>
+                      <Ionicons
+                        name={isEntregue ? "checkmark-circle" : "close-circle"}
+                        size={40}
+                        color={isEntregue ? COLORS.success : COLORS.grey300}
+                      />
+                      <Text style={styles.statusStaticText}>
+                        {isEntregue ? "BAIXA OK" : "ANULADO"}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Informações da Encomenda */}
               <View style={styles.infoSection}>
                 <View style={styles.detailRow}>
                   <View style={{ flex: 1 }}>
@@ -181,7 +231,6 @@ export const ModalDetalhesEntrega = ({
                   </View>
                 ) : null}
 
-                {/* Observações */}
                 {entrega.observacoes && entrega.observacoes.trim() !== "" ? (
                   <View style={styles.obsBox}>
                     <View style={styles.obsHeader}>
@@ -199,22 +248,21 @@ export const ModalDetalhesEntrega = ({
                 ) : null}
               </View>
 
-              {/* Auditoria */}
+              {/* Histórico de Auditoria */}
               <View style={styles.auditCard}>
                 <Text style={styles.auditHeader}>HISTÓRICO DE AUDITORIA</Text>
+
                 <View style={styles.timelineItem}>
                   <View
                     style={[styles.dot, { backgroundColor: COLORS.secondary }]}
                   />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.auditLabel}>
-                      RECEBIMENTO NA PORTARIA
-                    </Text>
+                    <Text style={styles.auditLabel}>RECEBIMENTO</Text>
                     <Text style={styles.auditValue}>
                       {formatarDataFrase(entrega.data_recebimento)}
                     </Text>
                     <Text style={styles.auditOperator}>
-                      Responsável:{" "}
+                      Portaria:{" "}
                       <Text style={styles.bold}>
                         {entrega.operador_entrada_nome || "Sistema"}
                       </Text>
@@ -223,40 +271,33 @@ export const ModalDetalhesEntrega = ({
                 </View>
 
                 {isEntregue ? (
-                  <View style={[styles.timelineItem, { marginTop: 20 }]}>
+                  <View style={[styles.timelineItem, { marginTop: 15 }]}>
                     <View
                       style={[styles.dot, { backgroundColor: COLORS.success }]}
                     />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.auditLabel}>
-                        BAIXA DE SAÍDA REALIZADA
-                      </Text>
+                      <Text style={styles.auditLabel}>BAIXA DE SAÍDA</Text>
                       <Text style={styles.auditValue}>
                         {formatarDataFrase(entrega.data_entrega)}
                       </Text>
                       <Text style={styles.auditOperator}>
-                        Liberado por:{" "}
+                        Saída por:{" "}
                         <Text style={styles.bold}>
                           {entrega.operador_saida_nome || "N/I"}
                         </Text>
                       </Text>
-                      <View style={styles.retiradaInfoBox}>
-                        <Text style={styles.retiradoPor}>
-                          Retirado por:{" "}
-                          <Text style={styles.bold}>
-                            {entrega.documento_retirou || "O próprio"}
-                          </Text>
+                      <Text style={styles.auditOperator}>
+                        Levado por:{" "}
+                        <Text style={styles.bold}>
+                          {entrega.documento_retirou || "O próprio"}
                         </Text>
-                        <Text style={styles.metodoTexto}>
-                          Método: {entrega.quem_retirou}
-                        </Text>
-                      </View>
+                      </Text>
                     </View>
                   </View>
                 ) : null}
               </View>
 
-              {/* Ações */}
+              {/* Botões Administrativos */}
               {!isMorador && isPendente ? (
                 <View style={styles.actionGroup}>
                   <TouchableOpacity
@@ -291,7 +332,6 @@ export const ModalDetalhesEntrega = ({
                         EDITAR
                       </Text>
                     </TouchableOpacity>
-
                     <TouchableOpacity
                       style={[
                         styles.btnSecondary,
@@ -316,7 +356,7 @@ export const ModalDetalhesEntrega = ({
         </View>
       </Modal>
 
-      {/* ✅ MODAL SECUNDÁRIA PARA VER FOTO EM TELA CHEIA */}
+      {/* Modal Visualização Foto */}
       <Modal visible={verFotoFull} transparent={true} animationType="fade">
         <View style={styles.fullImageOverlay}>
           <TouchableOpacity
@@ -359,12 +399,16 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 15,
   },
+  idLabel: {
+    fontSize: 9,
+    color: COLORS.textLight,
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    marginBottom: 2,
+  },
   rowTitle: { flexDirection: "row", alignItems: "center" },
   modalTitle: { fontSize: 18, fontWeight: "900", color: COLORS.textMain },
   modalSub: { fontSize: 13, color: COLORS.textSecondary, fontWeight: "600" },
   closeBtn: { padding: 5 },
-
-  // ✅ Banner de Urgência
   badgeUrgenteTopo: {
     backgroundColor: COLORS.error,
     flexDirection: "row",
@@ -379,6 +423,66 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "900",
     marginLeft: 4,
+  },
+
+  // ✅ Estilo das Duas Colunas
+  mediaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+    gap: 12,
+  },
+  mediaColumn: {
+    flex: 1,
+    height: 160,
+    borderRadius: 15,
+    backgroundColor: COLORS.grey100,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  fotoEtiqueta: { width: "100%", height: "100%" },
+  zoomHint: {
+    position: "absolute",
+    bottom: 5,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  zoomText: {
+    color: COLORS.white,
+    fontSize: 8,
+    fontWeight: "bold",
+    marginLeft: 4,
+  },
+
+  qrColumn: { backgroundColor: COLORS.white },
+  qrWrapper: { padding: 8, backgroundColor: COLORS.white },
+  qrLabel: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: COLORS.primary,
+    marginTop: 5,
+  },
+
+  placeholderMedia: { alignItems: "center" },
+  placeholderText: {
+    fontSize: 9,
+    fontWeight: "bold",
+    color: COLORS.grey300,
+    marginTop: 5,
+  },
+  statusStatic: { alignItems: "center" },
+  statusStaticText: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: COLORS.textLight,
+    marginTop: 5,
   },
 
   bannerCancelado: {
@@ -401,34 +505,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontStyle: "italic",
   },
-
-  // ✅ Foto com Hint de Zoom
-  fotoWrapper: { position: "relative", marginBottom: 20 },
-  fotoEtiqueta: {
-    width: "100%",
-    height: 200,
-    borderRadius: 15,
-    backgroundColor: COLORS.grey100,
-  },
-  zoomHint: {
-    position: "absolute",
-    bottom: 10,
-    right: 10,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  zoomText: {
-    color: COLORS.white,
-    fontSize: 9,
-    fontWeight: "bold",
-    marginLeft: 5,
-  },
-
-  // ✅ Full Image Modal Styles
   fullImageOverlay: {
     flex: 1,
     backgroundColor: "black",
@@ -450,7 +526,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: COLORS.textLight,
     marginBottom: 2,
-    letterSpacing: 0.5,
   },
   detailValue: { fontSize: 18, fontWeight: "bold", color: COLORS.textMain },
   gridRow: {
@@ -464,7 +539,6 @@ const styles = StyleSheet.create({
   gridItem: { flex: 1 },
   gridValue: { fontSize: 14, fontWeight: "700", color: COLORS.primary },
   rastreioBox: {
-    marginTop: 5,
     backgroundColor: COLORS.grey100,
     padding: 10,
     borderRadius: 10,
@@ -499,7 +573,7 @@ const styles = StyleSheet.create({
   },
   auditCard: {
     backgroundColor: COLORS.grey100,
-    padding: 18,
+    padding: 15,
     borderRadius: 15,
     marginBottom: 20,
     borderWidth: 1,
@@ -509,37 +583,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "900",
     color: COLORS.textLight,
-    marginBottom: 15,
-    letterSpacing: 1,
+    marginBottom: 10,
   },
   timelineItem: { flexDirection: "row", alignItems: "flex-start" },
   dot: { width: 8, height: 8, borderRadius: 4, marginTop: 4, marginRight: 12 },
-  auditLabel: {
-    fontSize: 9,
-    fontWeight: "900",
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-  },
-  auditValue: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: COLORS.textMain,
-    marginTop: 2,
-  },
-  auditOperator: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  retiradaInfoBox: {
-    marginTop: 8,
-    paddingLeft: 10,
-    borderLeftWidth: 2,
-    borderLeftColor: COLORS.success,
-  },
-  retiradoPor: { fontSize: 12, color: COLORS.textMain },
-  metodoTexto: {
-    fontSize: 11,
-    color: COLORS.textLight,
-    fontStyle: "italic",
-    marginTop: 2,
-  },
+  auditLabel: { fontSize: 8, fontWeight: "900", color: COLORS.textSecondary },
+  auditValue: { fontSize: 12, fontWeight: "700", color: COLORS.textMain },
+  auditOperator: { fontSize: 11, color: COLORS.textSecondary },
   bold: { fontWeight: "800", color: COLORS.textMain },
   actionGroup: { marginTop: 10 },
   btnPrimary: {

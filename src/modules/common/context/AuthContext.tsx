@@ -89,8 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (authSessao) {
       const handlePushRegistration = async () => {
         try {
-          const token =
-            await notificationService.registerForPushNotifications();
+          let token = await notificationService.registerForPushNotifications();
           if (token) await notificationService.updateServerToken(token);
         } catch (error) {
           console.error("Erro push:", error);
