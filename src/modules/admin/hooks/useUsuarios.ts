@@ -1,10 +1,10 @@
 import { useCallback, useState } from "react";
-import { unidadeService } from "../services/unidadeService";
+import { unidadeService } from "../../common/services/unidadeService";
 
 export type {
   IUsuarioCadastroPayload,
   IUsuarioEdicaoPayload,
-  IUsuarioListagem
+  IUsuarioListagem,
 } from "../services/usuarioService";
 
 import {

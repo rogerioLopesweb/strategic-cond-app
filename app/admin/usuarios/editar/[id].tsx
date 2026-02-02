@@ -14,7 +14,6 @@ import {
 } from "react-native";
 
 // ✅ Hooks e Serviços Modulares
-import { useUnidades } from "@/src/modules/admin/hooks/useUnidades";
 import { useUsuarios } from "@/src/modules/admin/hooks/useUsuarios";
 import {
   TPerfilAcesso,
@@ -24,6 +23,7 @@ import { FeedbackModal } from "@/src/modules/common/components/FeedbackModal";
 import { Header } from "@/src/modules/common/components/Header";
 import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
+import { useUnidades } from "@/src/modules/common/hooks/useUnidades";
 
 export default function EditarUsuario() {
   const { id } = useLocalSearchParams();

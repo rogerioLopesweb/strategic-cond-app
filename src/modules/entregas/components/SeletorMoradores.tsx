@@ -2,200 +2,123 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  ScrollView,
+  FlatList,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
-// ✅ Imports Modulares e Convenção
-import { COLORS } from "../../common/constants/theme";
-import { useAuthContext } from "../../common/context/AuthContext";
-import { unidadeService } from "../../entregas/services/unidadeService";
-
-interface Morador {
-  usuario_id: string;
-  nome: string;
-  tipo: string;
-}
+import { COLORS } from "@/src/modules/common/constants/theme";
+import { useUnidades } from "@/src/modules/common/hooks/useUnidades";
+import { IMoradorUnidade } from "@/src/modules/common/types/unidadeTypes";
 
 interface Props {
-  condominioId: string | undefined;
+  condominioId: string;
   bloco: string;
   unidade: string;
-  onSelecionar: (morador: Morador) => void;
-  selecionadoId?: string | null;
+  selecionadoId?: string | null; // ✅ Ajustado para aceitar null
+  onSelecionarMorador: (morador: IMoradorUnidade) => void;
 }
 
 export const SeletorMoradores = ({
   condominioId,
   bloco,
   unidade,
-  onSelecionar,
-  selecionadoId,
+  selecionadoId, // ✅ Agora extraído corretamente
+  onSelecionarMorador,
 }: Props) => {
-  const [moradores, setMoradores] = useState<Morador[]>([]);
-  const [entregasLoading, setEntregasLoading] = useState(false);
-
-  // ✅ Usando a convenção de logout para expirar sessão se necessário
-  const { authLogout } = useAuthContext();
+  const { getMoradoresUnidade, loading } = useUnidades();
+  const [moradores, setMoradores] = useState<IMoradorUnidade[]>([]);
 
   useEffect(() => {
     const buscar = async () => {
-      const b = bloco.trim();
-      const u = unidade.trim();
-
-      // Só busca se tiver os dados mínimos necessários (Bloco >=1 e Unidade >=1)
-      if (condominioId && b.length >= 1 && u.length >= 1) {
-        setEntregasLoading(true);
-
-        try {
-          const res = await unidadeService.listarMoradoresPorUnidade(
-            condominioId,
-            b,
-            u,
-          );
-
-          if (res.success) {
-            // Normalização: Garante que tratamos os campos independente da caixa do banco
-            const dadosNormalizados = res.data.map((m: any) => ({
-              usuario_id: m.usuario_id,
-              nome: m.nome || m.Nome || "Morador",
-              tipo: m.tipo || m.Tipo || "Residente",
-            }));
-
-            setMoradores(dadosNormalizados);
-
-            // Automação: Se houver apenas 1 morador, já seleciona automaticamente
-            if (dadosNormalizados.length === 1) {
-              onSelecionar(dadosNormalizados[0]);
-            }
-          } else {
-            setMoradores([]);
-            if (res.error === "401") {
-              await authLogout();
-            }
-          }
-        } catch (error) {
-          console.error("💥 Erro SeletorMoradores:", error);
-        } finally {
-          setEntregasLoading(false);
+      if (!condominioId || !bloco || !unidade) return;
+      try {
+        const dados = (await getMoradoresUnidade(
+          condominioId,
+          bloco,
+          unidade,
+        )) as IMoradorUnidade[];
+        if (dados && Array.isArray(dados)) {
+          const ativos = dados.filter((m) => m.status === true);
+          setMoradores(ativos);
         }
-      } else {
-        setMoradores([]);
+      } catch (error) {
+        console.error("Erro no SeletorMoradores:", error);
       }
     };
+    buscar();
+  }, [condominioId, bloco, unidade]);
 
-    // Debounce de 600ms para não sobrecarregar a API enquanto digita
-    const delayDebounceFn = setTimeout(() => {
-      buscar();
-    }, 600);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [bloco, unidade, condominioId]);
-
-  if (entregasLoading) {
-    return (
-      <View style={styles.loadingArea}>
-        <ActivityIndicator size="small" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Buscando destinatários...</Text>
-      </View>
-    );
-  }
-
-  if (moradores.length === 0) return null;
+  if (loading)
+    return <ActivityIndicator color={COLORS.primary} style={{ margin: 20 }} />;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>Selecione o Destinatário:</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.scroll}
-      >
-        {moradores.map((item) => {
-          const isAtivo = selecionadoId === item.usuario_id;
+      <Text style={styles.titulo}>Selecione quem receberá a entrega:</Text>
+
+      <FlatList
+        data={moradores}
+        keyExtractor={(item) => item.usuario_id}
+        renderItem={({ item }) => {
+          const isSelected = item.usuario_id === selecionadoId; // ✅ Verifica seleção
 
           return (
             <TouchableOpacity
-              key={item.usuario_id}
-              activeOpacity={0.7}
-              style={[styles.chip, isAtivo && styles.chipAtivo]}
-              onPress={() => onSelecionar(item)}
+              style={[styles.itemMorador, isSelected && styles.itemSelecionado]}
+              onPress={() => {
+                // ✅ Proteção contra erro de "is not a function"
+                if (typeof onSelecionarMorador === "function") {
+                  onSelecionarMorador(item);
+                }
+              }}
             >
+              <View style={styles.info}>
+                <Text
+                  style={[styles.nome, isSelected && { color: COLORS.primary }]}
+                >
+                  {item.Nome || "Morador sem nome"}
+                </Text>
+                <Text style={styles.tipo}>{item.Tipo?.toUpperCase()}</Text>
+              </View>
               <Ionicons
-                name="person-circle"
-                size={18}
-                color={isAtivo ? COLORS.white : COLORS.primary}
+                name={isSelected ? "checkmark-circle" : "chevron-forward"}
+                size={20}
+                color={isSelected ? COLORS.primary : COLORS.grey300}
               />
-              <Text style={[styles.text, isAtivo && styles.textAtivo]}>
-                {item.nome} ({item.tipo})
-              </Text>
-              {isAtivo && (
-                <Ionicons
-                  name="checkmark-circle"
-                  size={14}
-                  color={COLORS.white}
-                  style={{ marginLeft: 5 }}
-                />
-              )}
             </TouchableOpacity>
           );
-        })}
-      </ScrollView>
+        }}
+        ListEmptyComponent={
+          <Text style={styles.vazio}>Nenhum morador ativo encontrado.</Text>
+        }
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { marginVertical: 12 },
+  container: { padding: 10 },
   titulo: {
-    fontSize: 10,
-    color: COLORS.textLight,
+    fontSize: 14,
     fontWeight: "bold",
-    marginBottom: 8,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  scroll: { flexDirection: "row" },
-  loadingArea: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 15,
-    backgroundColor: COLORS.grey100,
-    padding: 10,
-    borderRadius: 8,
-  },
-  loadingText: {
-    fontSize: 12,
-    color: COLORS.primary,
-    marginLeft: 8,
-    fontWeight: "600",
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: COLORS.white,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 25,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  chipAtivo: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  text: {
-    fontSize: 13,
     color: COLORS.textMain,
-    marginLeft: 6,
-    fontWeight: "500",
+    marginBottom: 10,
   },
-  textAtivo: {
-    color: COLORS.white,
-    fontWeight: "bold",
+  itemMorador: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 15,
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#eee",
   },
+  itemSelecionado: { borderColor: COLORS.primary, backgroundColor: "#F0F9FF" }, // ✅ Estilo de seleção
+  info: { flex: 1 },
+  nome: { fontSize: 16, fontWeight: "600", color: COLORS.textMain },
+  tipo: { fontSize: 11, color: COLORS.grey300, marginTop: 2 },
+  vazio: { textAlign: "center", color: COLORS.grey300, marginTop: 10 },
 });

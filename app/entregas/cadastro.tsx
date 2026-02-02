@@ -17,6 +17,7 @@ import {
 } from "react-native";
 
 // ✅ Imports Modulares
+import { IMoradorUnidade } from "@/src/modules/common/types/unidadeTypes";
 import { FeedbackModal } from "../../src/modules/common/components/FeedbackModal";
 import { Header } from "../../src/modules/common/components/Header";
 import {
@@ -214,13 +215,15 @@ export default function CadastroEntrega() {
 
               {!isEditing && (
                 <SeletorMoradores
-                  condominioId={authSessao?.condominio?.id}
+                  // ✅ O '!' garante ao TS que o ID existe nesse ponto
+                  condominioId={authSessao?.condominio?.id!}
                   bloco={bloco}
                   unidade={unidade}
                   selecionadoId={moradorIdReal}
-                  onSelecionar={(m) => {
+                  // ✅ Nome da prop corrigido para bater com o componente filho
+                  onSelecionarMorador={(m: IMoradorUnidade) => {
                     setMoradorIdReal(m.usuario_id);
-                    setDestinatario(m.nome || "Morador Selecionado");
+                    setDestinatario(m.Nome || "Morador Selecionado");
                   }}
                 />
               )}
