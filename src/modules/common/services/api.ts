@@ -8,14 +8,11 @@ export const api = axios.create({
 
 /**
  * INTERCEPTOR DE REQUEST
- * Garante que o Token seja enviado em todas as chamadas
  */
 api.interceptors.request.use(
   async (config) => {
     try {
-      // Importante: A chave deve ser a mesma usada no seu AuthContext
       const token = await AsyncStorage.getItem("@StrategicCond:token");
-
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -24,35 +21,43 @@ api.interceptors.request.use(
       return Promise.reject(error);
     }
   },
-  (error) => {
-    return Promise.reject(error);
-  },
+  (error) => Promise.reject(error),
 );
 
 /**
  * INTERCEPTOR DE RESPOSTA
- * Detecta se o servidor rejeitou o token e limpa o app
  */
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    // Se o servidor retornar 401, significa que o Token não foi aceito
-    if (error.response && error.response.status === 401) {
-      console.warn("⚠️ Token expirado ou inválido. Forçando logout...");
+    // 🚨 1. Evita loop infinito: se o erro for no próprio Login, não força Logout
+    const isLoginRequest =
+      error.config?.url?.includes("/login") ||
+      error.config?.url?.includes("/auth");
+
+    if (error.response && error.response.status === 401 && !isLoginRequest) {
+      console.warn("⚠️ Sessão expirada no servidor. Limpando credenciais...");
 
       try {
-        // Limpa o armazenamento local
         await AsyncStorage.multiRemove([
           "@StrategicCond:user",
           "@StrategicCond:token",
         ]);
 
-        // Nota: O redirecionamento acontece porque o estado do seu AuthContext
-        // mudará ao detectar que o token sumiu.
+        // ✅ 2. DICA DE OURO: Para o App "acordar" e voltar para o Login sozinho,
+        // o ideal é recarregar o estado global ou emitir um evento.
+        // Se você usa o Expo Router, pode tentar um redirecionamento forçado aqui:
+        // router.replace("/(auth)/login");
       } catch (e) {
-        console.error("Erro ao limpar storage no logout forçado", e);
+        console.error("Erro ao limpar storage", e);
       }
     }
+
+    // Trata erros de rede/timeout para dar um feedback melhor
+    if (error.code === "ECONNABORTED") {
+      console.error("A VPS demorou demais para responder.");
+    }
+
     return Promise.reject(error);
   },
 );

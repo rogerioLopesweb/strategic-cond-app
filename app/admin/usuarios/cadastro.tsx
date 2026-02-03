@@ -18,7 +18,7 @@ import {
   IUsuarioCadastroPayload,
   TPerfilAcesso,
   TTipoVinculo,
-} from "@/src/modules/admin/services/usuarioService";
+} from "@/src/modules/admin/types/usuarioTypes";
 import { FeedbackModal } from "@/src/modules/common/components/FeedbackModal"; // ✅ Voltando para o Modal
 import { Header } from "@/src/modules/common/components/Header";
 import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";

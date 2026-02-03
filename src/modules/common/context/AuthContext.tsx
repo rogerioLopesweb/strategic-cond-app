@@ -7,9 +7,9 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { api } from "../services/api";
 import { authService } from "../services/authService";
 import { notificationService } from "../services/notificationService";
+import { authEvents } from "../utils/authEvents"; // ✅ Importado
 
 // Chaves para persistência
 const USER_KEY = "@StrategicCond:user";
@@ -31,7 +31,6 @@ export interface IUserData {
   condominios: ICondominio[];
 }
 
-// ✅ Estrutura de Sessão Agregada (O "Estado de Trabalho" do App)
 export interface IAuthSessao {
   usuario: IUserData;
   condominio: ICondominio;
@@ -39,12 +38,12 @@ export interface IAuthSessao {
 }
 
 interface IAuthContextData {
-  authSessao: IAuthSessao | null; // Sessão completa (User + Condomínio)
-  authUser: IUserData | null; // Usuário base (necessário para a tela de Seleção)
-  authLoading: boolean; // Loading de restauração de sessão
-  authLoginLoading: boolean; // Loading do botão de Login
+  authSessao: IAuthSessao | null;
+  authUser: IUserData | null;
+  authLoading: boolean;
+  authLoginLoading: boolean;
   authLoginError: string | null;
-  authSigned: boolean; // Indica se o usuário passou pela tela de Login
+  authSigned: boolean;
   authLogin: (cpf: string, senha: string) => Promise<boolean>;
   authSelecionarCondominio: (id: string) => Promise<void>;
   authLogout: () => Promise<void>;
@@ -64,7 +63,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [authLoginError, setAuthLoginError] = useState<string | null>(null);
 
   // ✅ Computed: Montagem da Sessão Agregada
-  // Só retorna um objeto se o usuário escolheu um condomínio de trabalho
   const authSessao = useMemo(() => {
     if (!user || !condominioAtivo) return null;
 
@@ -84,6 +82,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [user, condominioAtivo]);
 
+  // ✅ NOVO: Ouvinte para Logout Forçado (Interceptor 401)
+  // Isso mata o "Estado Zumbi" quando o token expira na VPS
+  useEffect(() => {
+    const handleForceLogout = () => {
+      setUser(null);
+      setCondominioAtivo(null);
+    };
+
+    authEvents.on("forceLogout", handleForceLogout);
+    return () => authEvents.off("forceLogout", handleForceLogout);
+  }, []);
+
   // ✅ Efeito: Registro de Push Notifications
   useEffect(() => {
     if (authSessao) {
@@ -99,7 +109,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [authSessao]);
 
-  // ✅ Efeito: Restauração de dados do Storage ao abrir o App
+  // ✅ Efeito: Restauração de dados do Storage
   useEffect(() => {
     async function loadStorageData() {
       try {
@@ -112,13 +122,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (storageUser && storageToken) {
           const parsedUser = JSON.parse(storageUser);
           setUser(parsedUser);
-          api.defaults.headers.common["Authorization"] =
-            `Bearer ${storageToken}`;
+
+          // Nota: O token não precisa ser setado no header comum aqui,
+          // pois o interceptor de Request da api.ts já o lê do storage em cada chamada.
 
           if (storageActive) {
             setCondominioAtivo(JSON.parse(storageActive));
           } else if (parsedUser.condominios?.length === 1) {
-            // Se tiver apenas um, já define como ativo automaticamente
             const unico = parsedUser.condominios[0];
             setCondominioAtivo(unico);
             await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(unico));
@@ -144,12 +154,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
         if (token) {
           await AsyncStorage.setItem(TOKEN_KEY, token);
-          api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
         }
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
 
         let activeCondo = null;
-        // Auto-seleção se houver apenas um condomínio
         if (userData.condominios?.length === 1) {
           activeCondo = userData.condominios[0];
           await AsyncStorage.setItem(
@@ -188,7 +196,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const authLogout = useCallback(async () => {
     try {
       await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY, ACTIVE_CONDO_KEY]);
-      delete api.defaults.headers.common["Authorization"];
       setUser(null);
       setCondominioAtivo(null);
     } catch (error) {
@@ -200,14 +207,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     <AuthContext.Provider
       value={{
         authSessao,
-        authUser: user, // Disponibiliza o usuário para a tela de Seleção
+        authUser: user,
         authLoading,
         authLoginLoading,
         authLoginError,
         authLogin,
         authLogout,
         authSelecionarCondominio,
-        // authSigned: true se o usuário estiver carregado, permitindo ver a Seleção ou Home
         authSigned: !!user,
       }}
     >

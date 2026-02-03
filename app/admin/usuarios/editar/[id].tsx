@@ -18,12 +18,13 @@ import { useUsuarios } from "@/src/modules/admin/hooks/useUsuarios";
 import {
   TPerfilAcesso,
   TTipoVinculo,
-} from "@/src/modules/admin/services/usuarioService";
+} from "@/src/modules/admin/types/usuarioTypes";
 import { FeedbackModal } from "@/src/modules/common/components/FeedbackModal";
 import { Header } from "@/src/modules/common/components/Header";
 import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 import { useUnidades } from "@/src/modules/common/hooks/useUnidades";
+import { formatarDataParaExibicao } from "@/src/modules/common/utils/date";
 
 export default function EditarUsuario() {
   const { id } = useLocalSearchParams();
@@ -100,11 +101,13 @@ export default function EditarUsuario() {
       authSessao?.condominio?.id || "",
     );
     if (res) {
+      const dataFormatada = formatarDataParaExibicao(res.data_nascimento);
+
       setNome(res.nome_completo);
       setCpf(res.cpf);
       setEmail(res.email);
       setTelefone(maskPhone(res.telefone || ""));
-      setDataNasc(maskDate(res.data_nascimento || ""));
+      setDataNasc(dataFormatada || "");
       setEmergencia(res.contato_emergencia || "");
       setPerfil(res.perfil as TPerfilAcesso);
       setFotoPreview(res.foto_perfil);

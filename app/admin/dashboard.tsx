@@ -11,13 +11,9 @@ import {
 } from "react-native";
 
 // ✅ Imports Modulares e Convenção
-import { Header } from "../../src/modules/common/components/Header";
-import {
-  COLORS,
-  SHADOWS,
-  SIZES,
-} from "../../src/modules/common/constants/theme";
-import { useAuthContext } from "../../src/modules/common/context/AuthContext";
+import { Header } from "@/src/modules/common/components/Header";
+import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
+import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 
 // Componente de Item de Menu Interno (Botão menor dentro do Card)
 const MenuItem = ({ title, icon, onPress, color = COLORS.primary }: any) => (

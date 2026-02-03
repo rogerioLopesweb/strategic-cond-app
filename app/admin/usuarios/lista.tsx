@@ -14,10 +14,8 @@ import {
 
 // ✅ Imports Modulares
 import { ModalInfoUsuario } from "@/src/modules/admin/components/ModalInfoUsuario";
-import {
-  IUsuarioListagem,
-  useUsuarios,
-} from "@/src/modules/admin/hooks/useUsuarios";
+import { useUsuarios } from "@/src/modules/admin/hooks/useUsuarios";
+import { IUsuarioListagem } from "@/src/modules/admin/types/usuarioTypes";
 import { FeedbackBox } from "@/src/modules/common/components/FeedbackBox";
 import { Header } from "@/src/modules/common/components/Header";
 import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";
@@ -28,6 +26,8 @@ export default function ListaUsuarios() {
   const { authSessao } = useAuthContext();
   const {
     usuarios,
+    usuarioFoco, // ✅ Extraído do Hook
+    getUsuarioDetalhado, // ✅ Extraído do Hook
     loading,
     getUsuariosCondominio,
     atualizarStatus,
@@ -56,6 +56,17 @@ export default function ListaUsuarios() {
   useEffect(() => {
     if (condominioId) getUsuariosCondominio(condominioId);
   }, [condominioId]);
+
+  // ✅ NOVA FUNÇÃO: Dispara a busca detalhada ao clicar no card
+  const handleAbrirUsuario = async (item: IUsuarioListagem) => {
+    setSelectedUser(item); // Seta o básico imediatamente para abrir o modal
+    setModalVisible(true);
+
+    if (condominioId) {
+      // ✅ Busca Nascimento e Emergência na VPS
+      await getUsuarioDetalhado(item.id, condominioId);
+    }
+  };
 
   const showFeedback = (
     type: "success" | "error" | "warning" | "info",
@@ -118,10 +129,7 @@ export default function ListaUsuarios() {
     return (
       <TouchableOpacity
         activeOpacity={0.8}
-        onPress={() => {
-          setSelectedUser(item);
-          setModalVisible(true);
-        }}
+        onPress={() => handleAbrirUsuario(item)}
         style={styles.card}
       >
         <View style={styles.cardContent}>
@@ -238,10 +246,9 @@ export default function ListaUsuarios() {
       <ModalInfoUsuario
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        user={selectedUser}
+        // ✅ Prioriza o 'usuarioFoco' (detalhado) se ele existir, senão usa o básico
+        user={usuarioFoco || selectedUser}
         onToggleStatus={handleToggleStatus}
-        // ✅ Dica: No ModalInfoUsuario, você deve ter um botão "Editar"
-        // que faz: router.push(`/admin/usuarios/editar/${user.id}`)
       />
     </View>
   );

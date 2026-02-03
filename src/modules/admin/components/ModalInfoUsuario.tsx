@@ -1,20 +1,21 @@
+import { formatarDataParaExibicao } from "@/src/modules/common/utils/date";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router"; // ✅ Importado para navegação
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    Modal,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { FeedbackBox } from "../../common/components/FeedbackBox"; // ✅ Importado
 import { COLORS, SHADOWS } from "../../common/constants/theme";
-import { IUsuarioListagem } from "../hooks/useUsuarios";
+import { IUsuarioListagem } from "../types/usuarioTypes";
 
 interface IModalInfoUsuarioProps {
   visible: boolean;
@@ -177,7 +178,7 @@ export const ModalInfoUsuario = ({
             {/* ✅ Novos campos fundamentais */}
             <InfoRow
               label="Nascimento"
-              value={user.data_nascimento || "---"}
+              value={formatarDataParaExibicao(user.data_nascimento) || "---"}
               icon="calendar-outline"
             />
             <InfoRow

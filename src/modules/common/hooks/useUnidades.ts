@@ -90,7 +90,7 @@ export const useUnidades = () => {
     setLoading(true);
     try {
       // ✅ Agora o nome bate com o da Service
-      return await unidadeService.atualizarStatusVinculo({
+      return await unidadeService.atualizarVinculo({
         usuario_id,
         unidade_id,
         status: false,

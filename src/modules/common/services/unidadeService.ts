@@ -40,7 +40,7 @@ export const unidadeService = {
   },
 
   // 4. Gestão de Status (SAÍDA/ENTRADA) - Nome padronizado para bater com o Hook
-  atualizarStatusVinculo: async (data: {
+  atualizarVinculo: async (data: {
     usuario_id: string;
     unidade_id: string;
     status: boolean;

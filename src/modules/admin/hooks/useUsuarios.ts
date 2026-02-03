@@ -1,23 +1,19 @@
 import { useCallback, useState } from "react";
 import { unidadeService } from "../../common/services/unidadeService";
-
-export type {
-  IUsuarioCadastroPayload,
-  IUsuarioEdicaoPayload,
-  IUsuarioListagem,
-} from "../services/usuarioService";
-
+import { usuarioService } from "../services/usuarioService";
 import {
   IUsuarioCadastroPayload,
   IUsuarioEdicaoPayload,
   IUsuarioListagem,
-  usuarioService,
-} from "../services/usuarioService";
+} from "../types/usuarioTypes";
 
 export const useUsuarios = () => {
   const [loading, setLoading] = useState(false);
   const [usuarios, setUsuarios] = useState<IUsuarioListagem[]>([]);
   const [pagination, setPagination] = useState<any>(null);
+
+  // ✅ ESTADO PARA O MODAL: Armazena os dados detalhados (Nascimento, Emergência, etc.)
+  const [usuarioFoco, setUsuarioFoco] = useState<any>(null);
 
   /**
    * 1. BUSCA DETALHADA: Carrega o Raio-X do usuário (Dados + Unidades Ativas)
@@ -29,7 +25,13 @@ export const useUsuarios = () => {
     setLoading(true);
     try {
       const res = await usuarioService.getDetalhes(usuario_id, condominio_id);
-      return res.usuario;
+
+      if (res.success) {
+        // ✅ Salva no estado para o Modal reagir automaticamente
+        setUsuarioFoco(res.usuario);
+        return res.usuario;
+      }
+      return null;
     } catch (error) {
       console.error("StrategicCond - Erro ao buscar detalhes:", error);
       return null;
@@ -39,7 +41,7 @@ export const useUsuarios = () => {
   };
 
   /**
-   * 2. ATUALIZAR PERFIL: Salva dados pessoais e cargo (ex: Síndico/Morador)
+   * 2. ATUALIZAR PERFIL: Salva dados pessoais e cargo
    */
   const atualizarPerfil = async (data: IUsuarioEdicaoPayload) => {
     setLoading(true);
@@ -55,7 +57,7 @@ export const useUsuarios = () => {
   };
 
   /**
-   * 3. GESTÃO DE VÍNCULO: Registra saída ou reativa moradia (Histórico)
+   * 3. GESTÃO DE VÍNCULO: Registra saída ou reativa moradia
    */
   const atualizarVinculoUnidade = async (
     usuario_id: string,
@@ -64,12 +66,11 @@ export const useUsuarios = () => {
   ) => {
     setLoading(true);
     try {
-      // Chama o serviço de unidade, pois a regra de negócio de imóvel mora lá
-      const res = await unidadeService.atualizarVinculo(
+      const res = await unidadeService.atualizarVinculo({
         usuario_id,
         unidade_id,
         status,
-      );
+      });
       return res;
     } catch (error) {
       console.error("StrategicCond - Erro ao atualizar vínculo:", error);
@@ -80,12 +81,12 @@ export const useUsuarios = () => {
   };
 
   /**
-   * 4. VINCULAR NOVA UNIDADE: Adiciona imóvel via Bloco/Número na edição
+   * 4. VINCULAR NOVA UNIDADE: Adiciona imóvel via Bloco/Número
    */
   const vincularNovaUnidade = async (data: any) => {
     setLoading(true);
     try {
-      const res = await unidadeService.vincularPorBloco(data);
+      const res = await unidadeService.vincularMorador(data);
       return res;
     } catch (error) {
       console.error("StrategicCond - Erro ao vincular nova unidade:", error);
@@ -96,7 +97,7 @@ export const useUsuarios = () => {
   };
 
   /**
-   * 5. LISTAGEM GERAL: Busca usuários para a tela de gestão principal
+   * 5. LISTAGEM GERAL: Busca usuários para a tela principal
    */
   const getUsuariosCondominio = useCallback(
     async (condominio_id: string, params?: any) => {
@@ -131,7 +132,7 @@ export const useUsuarios = () => {
   };
 
   /**
-   * 7. STATUS DE ACESSO: Ativa/Inativa conta do usuário no condomínio
+   * 7. STATUS DE ACESSO: Ativa/Inativa conta do usuário
    */
   const atualizarStatus = async (
     usuario_id: string,
@@ -155,7 +156,7 @@ export const useUsuarios = () => {
   };
 
   /**
-   * 8. OPTIMISTIC UPDATE: Atualização visual imediata da listagem
+   * 8. OPTIMISTIC UPDATE: Atualização visual imediata
    */
   const atualizarUsuarioNaLista = (usuarioId: string, novoStatus: boolean) => {
     setUsuarios((prev) =>
@@ -187,6 +188,8 @@ export const useUsuarios = () => {
   return {
     loading,
     usuarios,
+    usuarioFoco, // ✅ Exportado para o Modal usar
+    setUsuarioFoco, // ✅ Útil para limpar o modal ao fechar
     pagination,
     getUsuariosCondominio,
     getUsuarioDetalhado,

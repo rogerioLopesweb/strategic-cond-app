@@ -20,8 +20,9 @@ function RootLayoutNav() {
     if (authLoading) return;
 
     // Identificação de onde o usuário está
+    const rootSegment = segments[0] as string;
     const isAtLogin =
-      !segments[0] || segments[0] === "index" || segments[0] === "(auth)";
+      !segments[0] || rootSegment === "index" || rootSegment === "(auth)";
     const isAtSelecao = segments[0] === "selecao-condominio";
 
     if (authSigned) {
