@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-// ✅ Imports Modulares
+// ✅ Imports Modulares e Hooks
 import { useUsuarios } from "@/src/modules/admin/hooks/useUsuarios";
 import {
   IUnidadeVinculo,
@@ -19,10 +19,14 @@ import {
   TPerfilAcesso,
   TTipoVinculo,
 } from "@/src/modules/admin/types/usuarioTypes";
-import { FeedbackModal } from "@/src/modules/common/components/FeedbackModal"; // ✅ Voltando para o Modal
+import { FeedbackModal } from "@/src/modules/common/components/FeedbackModal";
 import { Header } from "@/src/modules/common/components/Header";
-import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";
+import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
+
+// ✅ Utils Centralizados
+import { maskCPF, maskPhone } from "@/src/modules/common/utils/mask.utils";
+import { validateEmail } from "@/src/modules/common/utils/validation.utils";
 
 export default function CadastroUsuario() {
   const router = useRouter();
@@ -50,6 +54,7 @@ export default function CadastroUsuario() {
     type: "success" | "error" | "warning" | "confirm";
     title: string;
     message: string;
+    onAction?: () => void;
   }>({
     visible: false,
     type: "success",
@@ -57,33 +62,9 @@ export default function CadastroUsuario() {
     message: "",
   });
 
-  // Auxiliares de Máscara
-  const maskCPF = (v: string) =>
-    v
-      .replace(/\D/g, "")
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d)/, "$1.$2")
-      .replace(/(\d{3})(\d{1,2})/, "$1-$2")
-      .substring(0, 14);
-  const maskPhone = (v: string) =>
-    v
-      .replace(/\D/g, "")
-      .replace(/(\d{2})(\d)/, "($1) $2")
-      .replace(/(\d{5})(\d)/, "$1-$2")
-      .substring(0, 15);
-
-  // 1. Regex Robusto para E-mail
-  const validateEmail = (email: string) => {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    // Além do regex, vamos barrar caracteres que costumam causar erro em bancos de dados
-    const hasInvalidChars = /[/\\()|<>]/.test(email);
-
-    return regex.test(email) && !hasInvalidChars;
-  };
-
   const handleSalvar = async () => {
-    // 1. Validação de campos básicos
-    if (!nome || cpf.length < 14 || !email.includes("@") || !telefone) {
+    // 🛡️ 1. Validação de campos básicos
+    if (!nome || cpf.length < 14 || !telefone || !email) {
       return setFb({
         visible: true,
         type: "warning",
@@ -93,18 +74,18 @@ export default function CadastroUsuario() {
       });
     }
 
-    // Validação de E-mail Refinada
+    // 🛡️ 2. Validação de E-mail Refinada (Usando util)
     if (!validateEmail(email)) {
       return setFb({
         visible: true,
         type: "warning",
         title: "E-mail Inválido",
         message:
-          "O formato do e-mail está incorreto. Certifique-se de não usar barras (/) ou caracteres especiais inválidos.",
+          "O formato do e-mail está incorreto ou contém caracteres inválidos (/ \\ |).",
       });
     }
 
-    // ✅ 2. Validação RIGOROSA de Unidade (O que faltava)
+    // 🛡️ 3. Validação RIGOROSA de Unidade
     const exigeUnidade = ["morador", "subsindico", "conselheiro"].includes(
       perfil,
     );
@@ -130,12 +111,6 @@ export default function CadastroUsuario() {
         foto_base64: null,
       };
 
-      // Log para conferência final
-      console.log(
-        "🚀 Enviando Cadastro Mestre:",
-        JSON.stringify(payload, null, 2),
-      );
-
       const res = await cadastrarUsuarioCompleto(payload);
 
       if (res.success) {
@@ -143,7 +118,8 @@ export default function CadastroUsuario() {
           visible: true,
           type: "success",
           title: "Cadastro Realizado!",
-          message: `O acesso foi criado. Senha provisória: ${res.senha_provisoria}`,
+          message: `O acesso foi criado com sucesso. Senha provisória enviada: ${res.senha_provisoria}`,
+          onAction: () => router.back(),
         });
       }
     } catch (err: any) {
@@ -152,7 +128,8 @@ export default function CadastroUsuario() {
         type: "error",
         title: "Erro no Cadastro",
         message:
-          err.response?.data?.message || "Não foi possível conectar à VPS.",
+          err.response?.data?.message ||
+          "Não foi possível conectar à VPS do StrategicCond.",
       });
     }
   };
@@ -165,10 +142,14 @@ export default function CadastroUsuario() {
         showBack
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* SEÇÃO 1: PESSOAL */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>1. Informações Pessoais</Text>
+
           <Text style={styles.label}>NOME COMPLETO *</Text>
           <TextInput
             style={styles.input}
@@ -339,7 +320,6 @@ export default function CadastroUsuario() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* ✅ FeedbackModal integrado para confirmação de página inteira */}
       <FeedbackModal
         visible={fb.visible}
         type={fb.type}
@@ -347,9 +327,7 @@ export default function CadastroUsuario() {
         message={fb.message}
         onClose={() => {
           setFb({ ...fb, visible: false });
-          if (fb.type === "success") {
-            router.back(); // Volta para a lista após o OK no sucesso
-          }
+          if (fb.onAction) fb.onAction();
         }}
       />
     </View>
@@ -360,14 +338,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: {
     padding: 20,
-    maxWidth: 650,
+    maxWidth: 650, // Mantido para formulários de usuário (UX mais focada)
     alignSelf: "center",
     width: "100%",
   },
   card: {
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     padding: 20,
-    borderRadius: 12,
+    borderRadius: SIZES.radius,
     ...SHADOWS.light,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -389,7 +367,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   input: {
-    backgroundColor: "#F9F9FB",
+    backgroundColor: COLORS.grey100,
     padding: 12,
     borderRadius: 10,
     borderWidth: 1,
@@ -433,7 +411,7 @@ const styles = StyleSheet.create({
   uniItem: {
     flexDirection: "row",
     justifyContent: "space-between",
-    backgroundColor: "#F9F9FB",
+    backgroundColor: COLORS.grey100,
     padding: 12,
     borderRadius: 8,
     marginTop: 8,
@@ -445,6 +423,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     marginTop: 30,
+    marginBottom: 40,
     ...SHADOWS.medium,
   },
   btnSaveText: { color: "#fff", fontWeight: "bold", fontSize: 16 },

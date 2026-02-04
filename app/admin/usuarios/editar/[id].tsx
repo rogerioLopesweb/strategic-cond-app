@@ -26,6 +26,13 @@ import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 import { useUnidades } from "@/src/modules/common/hooks/useUnidades";
 import { formatarDataParaExibicao } from "@/src/modules/common/utils/date";
 
+// ✅ Utils (Máscara, Validação e CEP)
+import {
+  maskDateInput,
+  maskPhone,
+} from "@/src/modules/common/utils/mask.utils";
+import { validateEmail } from "@/src/modules/common/utils/validation.utils";
+
 export default function EditarUsuario() {
   const { id } = useLocalSearchParams();
   const { authSessao } = useAuthContext();
@@ -68,25 +75,6 @@ export default function EditarUsuario() {
     title: "",
     message: "",
   });
-
-  // 🛡️ Auxiliares de Máscara
-  const maskPhone = (v: string) =>
-    v
-      .replace(/\D/g, "")
-      .replace(/(\d{2})(\d)/, "($1) $2")
-      .replace(/(\d{5})(\d)/, "$1-$2")
-      .substring(0, 15);
-  const maskDate = (v: string) =>
-    v
-      .replace(/\D/g, "")
-      .replace(/(\d{2})(\d)/, "$1/$2")
-      .replace(/(\d{2})(\d)/, "$1/$2")
-      .substring(0, 10);
-
-  const validateEmail = (email: string) => {
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return regex.test(email) && !/[/\\()|<>]/.test(email);
-  };
 
   // 🔄 Carregamento Inicial
   useEffect(() => {
@@ -347,7 +335,7 @@ export default function EditarUsuario() {
               <TextInput
                 style={styles.input}
                 value={dataNasc}
-                onChangeText={(t) => setDataNasc(maskDate(t))}
+                onChangeText={(t) => setDataNasc(maskDateInput(t))}
                 placeholder="DD/MM/AAAA"
                 keyboardType="numeric"
                 maxLength={10}

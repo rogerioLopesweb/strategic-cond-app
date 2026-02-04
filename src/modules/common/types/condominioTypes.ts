@@ -1,24 +1,21 @@
 export interface ICondominio {
-  id: string;
+  id?: string;
   nome_fantasia: string;
-  razao_social?: string;
+  razao_social: string;
   cnpj: string;
-  logradouro?: string;
-  numero?: string;
-  bairro?: string;
+  logradouro: string;
+  numero: string;
+  bairro: string;
   cidade: string;
   estado: string;
-  cep?: string;
-  conta_id: string; // ✅ Campo essencial para o Multi-tenant
-  criado_em?: string;
+  cep: string;
+  conta_id: string; // 👈 Obrigatório para o Multi-tenant
+  ativo?: boolean;
 }
 
 export interface ICondominioResponse {
   success: boolean;
-  condominios: ICondominio[];
-  pagination?: {
-    total: number;
-    page: number;
-    total_pages: number;
-  };
+  message?: string;
+  condominio_id?: string;
+  condominios?: ICondominio[];
 }

@@ -27,6 +27,7 @@ export interface IUserData {
   nome: string;
   cpf: string;
   token?: string;
+  cargo?: string;
   isMaster: boolean; // ✅ Define se tem acesso ao Painel Administradora
   conta_id?: string; // ✅ ID da Conta PJ vinculada
   condominios: ICondominio[];
