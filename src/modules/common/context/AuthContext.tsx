@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { authService } from "../services/authService";
 import { notificationService } from "../services/notificationService";
-import { authEvents } from "../utils/authEvents"; // ✅ Importado
+import { authEvents } from "../utils/authEvents";
 
 // Chaves para persistência
 const USER_KEY = "@StrategicCond:user";
@@ -26,8 +26,9 @@ export interface IUserData {
   id: string;
   nome: string;
   cpf: string;
-  cargo?: string;
   token?: string;
+  isMaster: boolean; // ✅ Define se tem acesso ao Painel Administradora
+  conta_id?: string; // ✅ ID da Conta PJ vinculada
   condominios: ICondominio[];
 }
 
@@ -82,14 +83,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [user, condominioAtivo]);
 
-  // ✅ NOVO: Ouvinte para Logout Forçado (Interceptor 401)
-  // Isso mata o "Estado Zumbi" quando o token expira na VPS
+  // ✅ Ouvinte para Logout Forçado
   useEffect(() => {
     const handleForceLogout = () => {
       setUser(null);
       setCondominioAtivo(null);
     };
-
     authEvents.on("forceLogout", handleForceLogout);
     return () => authEvents.off("forceLogout", handleForceLogout);
   }, []);
@@ -109,7 +108,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [authSessao]);
 
-  // ✅ Efeito: Restauração de dados do Storage
+  // ✅ Efeito: Restauração de dados do Storage (Respeitando Regras Master)
   useEffect(() => {
     async function loadStorageData() {
       try {
@@ -120,15 +119,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         ]);
 
         if (storageUser && storageToken) {
-          const parsedUser = JSON.parse(storageUser);
+          const parsedUser: IUserData = JSON.parse(storageUser);
           setUser(parsedUser);
-
-          // Nota: O token não precisa ser setado no header comum aqui,
-          // pois o interceptor de Request da api.ts já o lê do storage em cada chamada.
 
           if (storageActive) {
             setCondominioAtivo(JSON.parse(storageActive));
-          } else if (parsedUser.condominios?.length === 1) {
+          }
+          // 🚀 AJUSTE: Auto-seleção apenas para usuários comuns com 1 condomínio
+          else if (
+            parsedUser.condominios?.length === 1 &&
+            !parsedUser.isMaster
+          ) {
             const unico = parsedUser.condominios[0];
             setCondominioAtivo(unico);
             await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(unico));
@@ -143,7 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     loadStorageData();
   }, []);
 
-  // ✅ Ação: Login
+  // ✅ Ação: Login (Respeitando Regras Master)
   const authLogin = useCallback(async (cpf: string, senha: string) => {
     setAuthLoginLoading(true);
     setAuthLoginError(null);
@@ -152,13 +153,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (res.success && res.usuario) {
         const { token, ...userData } = res.usuario;
 
-        if (token) {
-          await AsyncStorage.setItem(TOKEN_KEY, token);
-        }
+        if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
 
         let activeCondo = null;
-        if (userData.condominios?.length === 1) {
+
+        // 🚀 REGRA: Se for Master, nunca auto-seleciona (ele deve escolher no App)
+        // Se for usuário comum e tiver só 1, seleciona direto.
+        if (userData.condominios?.length === 1 && !userData.isMaster) {
           activeCondo = userData.condominios[0];
           await AsyncStorage.setItem(
             ACTIVE_CONDO_KEY,

@@ -3,7 +3,6 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
-// ✅ Importações ajustadas para a nova estrutura modular
 import { COLORS } from "../src/modules/common/constants/theme";
 import {
   AuthProvider,
@@ -11,37 +10,52 @@ import {
 } from "../src/modules/common/context/AuthContext";
 
 function RootLayoutNav() {
-  // ✅ Agora consumimos estritamente sob a nova convenção
-  const { authSessao, authLoading, authSigned } = useAuthContext();
+  const { authSessao, authLoading, authSigned, authUser } = useAuthContext();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (authLoading) return;
 
-    // Identificação de onde o usuário está
+    // 📍 Identificação de Contexto
     const rootSegment = segments[0] as string;
     const isAtLogin =
       !segments[0] || rootSegment === "index" || rootSegment === "(auth)";
-    const isAtSelecao = segments[0] === "selecao-condominio";
+    const isAtSelecao = rootSegment === "selecao-condominio";
+    const isAtAdminList =
+      segments[0] === "admin" && segments[1] === "condominio";
 
+    const temVinculos =
+      authUser?.condominios && authUser.condominios.length > 0;
+
+    // 🛡️ 1. SEGURANÇA: Não autenticado e tentando acessar áreas restritas
+    if (!authSigned) {
+      if (!isAtLogin) router.replace("/");
+      return;
+    }
+
+    // 🚀 2. REGRA MASTER: Dono da conta SEM vínculos (Direto para Gestão)
+    if (authUser?.isMaster && !temVinculos) {
+      if (!isAtAdminList) {
+        // Ajuste o caminho conforme sua estrutura real de pastas em (admin)
+        router.replace("/admin/dashboard");
+      }
+      return;
+    }
+
+    // 🚀 3. REGRA MISTA OU COMUM: Dono com vínculos OU Morador/Zelador
     if (authSigned) {
-      // REGRA 1: Autenticado mas sem condomínio ativo (authSessao nulo)
-      // Se não estiver na tela de seleção, força a ida para lá.
+      // Se ainda não escolheu o condomínio e não está na tela de seleção
       if (!authSessao && !isAtSelecao) {
         router.replace("/selecao-condominio");
       }
-      // REGRA 2: Sessão completa (Usuário + Condomínio)
-      // Se tentar voltar pro Login ou Seleção, manda para a Home.
+      // Se já escolheu o condomínio e tenta voltar pro Login/Seleção
       else if (authSessao && (isAtLogin || isAtSelecao)) {
-        router.replace("/home");
+        // Redireciona para a Home correta baseada no perfil
+        router.replace(authSessao.isMorador ? "/home" : "/admin/dashboard");
       }
     }
-    // REGRA 3: Não autenticado e tentando acessar áreas restritas
-    else if (!isAtLogin) {
-      router.replace("/");
-    }
-  }, [authSessao, authSigned, authLoading, segments]);
+  }, [authSessao, authSigned, authLoading, segments, authUser]);
 
   return (
     <View style={styles.outerContainer}>
@@ -52,15 +66,19 @@ function RootLayoutNav() {
           contentStyle: { backgroundColor: COLORS.background },
         }}
       >
+        {/* Telas de Fluxo Inicial */}
         <Stack.Screen name="index" />
         <Stack.Screen name="selecao-condominio" />
         <Stack.Screen name="home" />
 
+        {/* Módulo de Entregas */}
         <Stack.Screen name="entregas/lista-entregas" />
         <Stack.Screen name="entregas/cadastro" />
 
+        {/* Módulo Administrativo (Administradora/Síndico) */}
         <Stack.Screen name="admin/dashboard" />
         <Stack.Screen name="admin/importacao" />
+        {/* Adicione a tela de listagem de condomínios da admin se ela existir */}
       </Stack>
     </View>
   );

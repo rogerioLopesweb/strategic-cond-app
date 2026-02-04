@@ -15,34 +15,54 @@ import { Header } from "@/src/modules/common/components/Header";
 import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 
-// Componente de Item de Menu Interno (Botão menor dentro do Card)
-const MenuItem = ({ title, icon, onPress, color = COLORS.primary }: any) => (
+// Componente de Item de Menu Interno com lógica de bloqueio
+const MenuItem = ({
+  title,
+  icon,
+  onPress,
+  color = COLORS.primary,
+  disabled = false,
+}: any) => (
   <TouchableOpacity
-    style={styles.menuItem}
-    onPress={onPress}
-    activeOpacity={0.7}
+    style={[styles.menuItem, disabled && { opacity: 0.5 }]}
+    onPress={disabled ? undefined : onPress}
+    activeOpacity={disabled ? 1 : 0.7}
   >
-    <View style={[styles.iconCircle, { backgroundColor: color + "15" }]}>
-      <Ionicons name={icon} size={22} color={color} />
+    <View
+      style={[
+        styles.iconCircle,
+        { backgroundColor: color + (disabled ? "05" : "15") },
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={disabled ? COLORS.grey300 : color}
+      />
     </View>
-    <Text style={styles.menuItemText}>{title}</Text>
-    <Ionicons name="chevron-forward" size={16} color={COLORS.grey300} />
+    <Text style={[styles.menuItemText, disabled && { color: COLORS.grey300 }]}>
+      {title}
+    </Text>
+    {!disabled && (
+      <Ionicons name="chevron-forward" size={16} color={COLORS.grey300} />
+    )}
   </TouchableOpacity>
 );
 
 export default function Dashboard() {
   const router = useRouter();
+  const { authSessao, authUser } = useAuthContext();
 
-  // ✅ Consumindo a Sessão Agregada conforme convenção
-  const { authSessao } = useAuthContext();
+  if (!authUser || (!authUser.isMaster && !authSessao)) {
+    return null;
+  }
 
-  // Se por algum motivo a sessão não estiver pronta, não renderiza conteúdo sensível
-  if (!authSessao) return null;
+  const hasCondo = !!authSessao;
 
   return (
     <View style={styles.container}>
       <Header
-        tituloPagina="Painel Administrativo"
+        tituloPagina={hasCondo ? authSessao.condominio.nome : "Gestão Master"}
         breadcrumb={["Home", "Painel"]}
         showBack={true}
       />
@@ -52,37 +72,27 @@ export default function Dashboard() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contentWrapper}>
-          {/* SEÇÃO 1: USUÁRIOS */}
-          <View style={styles.sectionCard}>
-            <View style={styles.cardHeader}>
-              <Ionicons
-                name="people-outline"
-                size={24}
-                color={COLORS.primary}
-              />
-              <Text style={styles.cardTitle}>Gerenciamento de Usuários</Text>
+          {/* 🚩 BANNER DE AVISO (Aparece apenas se não houver condomínio selecionado) */}
+          {!hasCondo && (
+            <View style={styles.alertBanner}>
+              <View style={styles.alertIconBg}>
+                <Ionicons
+                  name="alert-circle"
+                  size={24}
+                  color={COLORS.secondary}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.alertTitle}>Seleção Necessária</Text>
+                <Text style={styles.alertMessage}>
+                  Para gerenciar unidades, moradores e portaria, primeiro
+                  escolha um condomínio em **"Meus Condomínios"**.
+                </Text>
+              </View>
             </View>
-            <View style={styles.cardBody}>
-              <MenuItem
-                title="Lista de Usuários"
-                icon="list-outline"
-                onPress={() => router.push("/admin/usuarios/lista")}
-              />
-              <MenuItem
-                title="Cadastrar Novo"
-                icon="person-add-outline"
-                onPress={() => router.push("/admin/usuarios/cadastro")}
-              />
-              <MenuItem
-                title="Importação (Excel/CSV)"
-                icon="cloud-upload-outline"
-                color={COLORS.success}
-                onPress={() => router.push("/admin/usuarios/importacao")}
-              />
-            </View>
-          </View>
+          )}
 
-          {/* SEÇÃO 2: CONDOMÍNIO E ESTRUTURA */}
+          {/* SEÇÃO 1: CONDOMÍNIO E ESTRUTURA (AGORA EM PRIMEIRO) */}
           <View style={styles.sectionCard}>
             <View style={styles.cardHeader}>
               <Ionicons
@@ -101,11 +111,42 @@ export default function Dashboard() {
               <MenuItem
                 title="Gestão de Unidades"
                 icon="grid-outline"
+                disabled={!hasCondo}
                 onPress={() => router.push("/admin/condominio/unidades")}
               />
-              <Text style={styles.hintText}>
-                * Dica: Vincule moradores diretamente na gestão de unidades.
-              </Text>
+            </View>
+          </View>
+
+          {/* SEÇÃO 2: USUÁRIOS */}
+          <View style={styles.sectionCard}>
+            <View style={styles.cardHeader}>
+              <Ionicons
+                name="people-outline"
+                size={24}
+                color={COLORS.primary}
+              />
+              <Text style={styles.cardTitle}>Gerenciamento de Usuários</Text>
+            </View>
+            <View style={styles.cardBody}>
+              <MenuItem
+                title="Lista de Usuários"
+                icon="list-outline"
+                disabled={!hasCondo}
+                onPress={() => router.push("/admin/usuarios/lista")}
+              />
+              <MenuItem
+                title="Cadastrar Novo"
+                icon="person-add-outline"
+                disabled={!hasCondo}
+                onPress={() => router.push("/admin/usuarios/cadastro")}
+              />
+              <MenuItem
+                title="Importação (Excel/CSV)"
+                icon="cloud-upload-outline"
+                color={COLORS.success}
+                disabled={!hasCondo}
+                onPress={() => router.push("/admin/usuarios/importacao")}
+              />
             </View>
           </View>
 
@@ -123,6 +164,7 @@ export default function Dashboard() {
               <MenuItem
                 title="Equipe de Portaria"
                 icon="id-card-outline"
+                disabled={!hasCondo}
                 onPress={() => router.push("/admin/portaria/equipe")}
               />
             </View>
@@ -145,6 +187,40 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
+  /* ESTILOS DO BANNER DE ALERTA */
+  alertBanner: {
+    width: "100%",
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
+    padding: 15,
+    marginBottom: 25,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 5,
+    borderLeftColor: COLORS.secondary,
+    ...SHADOWS.medium,
+  },
+  alertIconBg: {
+    width: 45,
+    height: 45,
+    borderRadius: 22,
+    backgroundColor: COLORS.secondary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  alertTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: COLORS.textMain,
+    marginBottom: 2,
+  },
+  alertMessage: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    lineHeight: 18,
+  },
+  /* ESTILOS DOS CARDS */
   sectionCard: {
     backgroundColor: COLORS.white,
     borderRadius: SIZES.radius,
@@ -168,9 +244,7 @@ const styles = StyleSheet.create({
     color: COLORS.textMain,
     marginLeft: 12,
   },
-  cardBody: {
-    gap: 10,
-  },
+  cardBody: { gap: 10 },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -192,12 +266,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.textMain,
     fontWeight: "500",
-  },
-  hintText: {
-    fontSize: 12,
-    color: COLORS.textLight,
-    fontStyle: "italic",
-    marginTop: 10,
-    textAlign: "center",
   },
 });

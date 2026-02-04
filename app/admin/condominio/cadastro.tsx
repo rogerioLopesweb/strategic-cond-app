@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,54 +12,54 @@ import {
   View,
 } from "react-native";
 
-// ✅ Imports seguindo a convenção modular
+// ✅ Componentes e Hooks da Convenção
 import { Header } from "@/src/modules/common/components/Header";
 import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
-import { condominioService } from "@/src/modules/common/services/condominioService";
-import { ICondominio } from "@/src/modules/common/types/condominioTypes";
+import { api } from "@/src/modules/common/services/api";
 
 export default function ListaCondominiosAdmin() {
   const router = useRouter();
   const { authUser, authSelecionarCondominio } = useAuthContext();
 
   const [loading, setLoading] = useState(true);
-  // ✅ Resolvido: Tipagem explícita para evitar o erro "never"
-  const [condominios, setCondominios] = useState<ICondominio[]>([]);
+  const [condominios, setCondominios] = useState([]);
   const [search, setSearch] = useState("");
 
-  const fetchCondominios = useCallback(async () => {
-    if (!authUser?.conta_id) return;
-
+  // 🔍 Busca os condomínios vinculados à Conta PJ
+  const fetchCondominios = async () => {
     try {
       setLoading(true);
-      // ✅ Uso do Service: Centraliza a URL e o tratamento de dados
-      const data = await condominioService.listarPorConta(authUser.conta_id);
-
-      if (data.success) {
-        setCondominios(data.condominios);
+      // Usamos o conta_id que veio no login do usuário Master
+      const response = await api.get(
+        `/condominios?conta_id=${authUser?.conta_id}`,
+      );
+      if (response.data.success) {
+        setCondominios(response.data.condominios);
       }
     } catch (error) {
       console.error("Erro ao carregar condomínios:", error);
     } finally {
       setLoading(false);
     }
-  }, [authUser?.conta_id]);
+  };
 
   useEffect(() => {
     fetchCondominios();
-  }, [fetchCondominios]);
+  }, []);
 
+  // ✅ Ação ao selecionar um condomínio
   const handleSelect = async (id: string) => {
     await authSelecionarCondominio(id);
+    // Após selecionar, voltamos para o Dashboard que agora estará "liberado"
     router.replace("/admin/dashboard");
   };
 
-  const filteredData = condominios.filter((item) =>
+  const filteredData = condominios.filter((item: any) =>
     item.nome_fantasia.toLowerCase().includes(search.toLowerCase()),
   );
 
-  const renderItem = ({ item }: { item: ICondominio }) => (
+  const renderItem = ({ item }: any) => (
     <TouchableOpacity
       style={styles.card}
       onPress={() => handleSelect(item.id)}
@@ -90,55 +90,53 @@ export default function ListaCondominiosAdmin() {
         breadcrumb={["Admin", "Condomínios"]}
         showBack={true}
       />
-      <View style={styles.contentWrapper}>
-        <View style={styles.content}>
-          <View style={styles.actionsRow}>
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={20} color={COLORS.grey300} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar por nome..."
-                placeholderTextColor={COLORS.grey300}
-                value={search}
-                onChangeText={setSearch}
-              />
-            </View>
 
-            <TouchableOpacity
-              style={styles.btnAdd}
-              onPress={() => router.push("/admin/condominio/cadastro")}
-            >
-              <Ionicons name="add" size={24} color={COLORS.white} />
-            </TouchableOpacity>
+      <View style={styles.content}>
+        {/* BARRA DE BUSCA E NOVO CADASTRO */}
+        <View style={styles.actionsRow}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={COLORS.grey300} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar por nome..."
+              value={search}
+              onChangeText={setSearch}
+            />
           </View>
 
-          {loading ? (
-            <View style={styles.loader}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Carregando sua carteira...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredData}
-              keyExtractor={(item) => item.id}
-              renderItem={renderItem}
-              contentContainerStyle={styles.list}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  <Ionicons
-                    name="business-outline"
-                    size={64}
-                    color={COLORS.grey200}
-                  />
-                  <Text style={styles.emptyText}>
-                    Nenhum condomínio encontrado.
-                  </Text>
-                </View>
-              }
-            />
-          )}
+          <TouchableOpacity
+            style={styles.btnAdd}
+            onPress={() => router.push("/admin/condominio/cadastro")}
+          >
+            <Ionicons name="add" size={24} color={COLORS.white} />
+          </TouchableOpacity>
         </View>
+
+        {loading ? (
+          <View style={styles.loader}>
+            <ActivityIndicator size="large" color={COLORS.primary} />
+            <Text style={styles.loadingText}>Carregando sua carteira...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredData}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="business-outline"
+                  size={64}
+                  color={COLORS.grey200}
+                />
+                <Text style={styles.emptyText}>
+                  Nenhum condomínio encontrado.
+                </Text>
+              </View>
+            }
+          />
+        )}
       </View>
     </View>
   );
@@ -146,12 +144,6 @@ export default function ListaCondominiosAdmin() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  contentWrapper: {
-    flex: 1,
-    width: "100%",
-    maxWidth: 1350,
-    alignSelf: "center",
-  },
   content: { flex: 1, padding: 20 },
   actionsRow: {
     flexDirection: "row",
@@ -223,7 +215,7 @@ const styles = StyleSheet.create({
   },
   cnpjText: {
     fontSize: 11,
-    color: COLORS.grey300, // Ajustado para melhor legibilidade
+    color: COLORS.grey300,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
   loader: { flex: 1, justifyContent: "center", alignItems: "center" },
