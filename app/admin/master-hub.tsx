@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,10 +12,9 @@ import {
 
 // ✅ Imports Modulares
 import { Header } from "@/src/modules/common/components/Header";
+import { SideMenu } from "@/src/modules/common/components/SideMenu";
 import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
-
-// --- COMPONENTES INTERNOS ---
 
 // Componente de Estatística (KPI)
 const StatCard = ({ title, value, icon, color }: any) => (
@@ -29,7 +29,7 @@ const StatCard = ({ title, value, icon, color }: any) => (
   </View>
 );
 
-// Componente de Item de Menu
+// Componente de Item de Menu (Refinado)
 const MenuItem = ({
   title,
   icon,
@@ -38,7 +38,7 @@ const MenuItem = ({
   disabled = false,
 }: any) => (
   <TouchableOpacity
-    style={[styles.menuItem, disabled && { opacity: 0.5 }]}
+    style={[styles.menuItem, disabled && { opacity: 0.4 }]}
     onPress={disabled ? undefined : onPress}
     activeOpacity={disabled ? 1 : 0.7}
   >
@@ -50,32 +50,34 @@ const MenuItem = ({
     >
       <Ionicons
         name={icon}
-        size={22}
+        size={20}
         color={disabled ? COLORS.grey300 : color}
       />
     </View>
     <Text style={[styles.menuItemText, disabled && { color: COLORS.grey300 }]}>
       {title}
     </Text>
-    {!disabled && (
-      <Ionicons name="chevron-forward" size={16} color={COLORS.grey300} />
+    {!disabled ? (
+      <Ionicons name="chevron-forward" size={14} color={COLORS.grey300} />
+    ) : (
+      <Ionicons name="lock-closed" size={12} color={COLORS.grey300} />
     )}
   </TouchableOpacity>
 );
 
-export default function DashboardOperacional() {
+export default function MasterHub() {
   const router = useRouter();
-  const { authSessao, authLimparCondominio } = useAuthContext();
+  const { authSessao, authUser, authLogout } = useAuthContext();
+  const [menuVisible, setMenuVisible] = useState(false);
 
-  // 🛡️ Segurança: Se não houver condomínio selecionado, não renderiza nada
-  if (!authSessao?.condominio) return null;
+  if (!authUser) return null;
 
   return (
     <View style={styles.container}>
       <Header
-        tituloPagina={authSessao.condominio.nome_fantasia}
-        breadcrumb={["Admin", "Operacional"]}
-        showBack={true}
+        tituloPagina="Gestão Master"
+        breadcrumb={["Home", "Administradora"]}
+        showBack={false}
       />
 
       <ScrollView
@@ -83,97 +85,67 @@ export default function DashboardOperacional() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contentWrapper}>
-          {/* 📊 SEÇÃO 1: KPIs DO PRÉDIO */}
+          {/* 📊 KPIs GLOBAIS DA CONTA PJ */}
           <View style={styles.statsRow}>
             <StatCard
-              title="Moradores"
-              value="342"
-              icon="people"
+              title="Condomínios"
+              value="12"
+              icon="business"
               color={COLORS.primary}
             />
             <StatCard
-              title="Encomendas Hoje"
-              value="14"
+              title="Total Usuários"
+              value="1.240"
+              icon="people"
+              color={COLORS.secondary}
+            />
+            <StatCard
+              title="Entregas/Mês"
+              value="850"
               icon="cube"
               color={COLORS.success}
             />
-            <StatCard
-              title="Vagas Livres"
-              value="45"
-              icon="car"
-              color={COLORS.secondary}
-            />
           </View>
 
-          {/* 🛠️ SEÇÃO 2: OPERAÇÃO DETALHADA */}
+          {/* 🏢 CARD ÚNICO: ADMINISTRADORA */}
           <View style={[styles.sectionCard, { width: "100%" }]}>
             <View style={styles.cardHeader}>
               <Ionicons
-                name="construct-outline"
+                name="briefcase-outline"
                 size={24}
                 color={COLORS.primary}
               />
-              <Text style={styles.cardTitle}>Operação do condominio</Text>
-            </View>
-            <View>
-              <Text style={styles.condominioName}>
-                {authSessao.condominio.nome_fantasia}
+              <Text style={styles.cardTitle}>
+                Gerenciamento da Administradora
               </Text>
             </View>
-
             <View style={styles.cardBody}>
-              {/* --- GRUPO: USUÁRIOS --- */}
-              <Text style={styles.subSectionTitle}>GERENCIAR USUÁRIOS</Text>
               <MenuItem
-                title="Lista de Acessos"
+                title="Meus Condomínios"
                 icon="list"
-                onPress={() => router.push("/admin/usuarios/lista" as any)}
+                onPress={() => router.push("/admin/condominio/lista" as any)}
               />
               <MenuItem
-                title="Cadastrar Morador/Func."
-                icon="person-add"
-                onPress={() => router.push("/admin/usuarios/cadastro" as any)}
-              />
-
-              <View style={styles.smallDivider} />
-
-              {/* --- GRUPO: UNIDADES --- */}
-              <Text style={styles.subSectionTitle}>UNIDADES E BLOCOS</Text>
-              <MenuItem
-                title="Gerar Unidades (Massa)"
-                icon="layers-outline"
-                onPress={() => router.push("admin/condominio/unidades" as any)}
+                title="Cadastrar Novo Prédio"
+                icon="add-circle"
+                onPress={() => router.push("/admin/condominio/cadastro" as any)}
               />
               <MenuItem
-                title="Listar Unidades"
-                icon="home-outline"
-                onPress={() => router.push("admin/condominio/unidades" as any)}
-              />
-
-              <View style={styles.smallDivider} />
-
-              {/* --- GRUPO: ENCOMENDAS --- */}
-              <Text style={styles.subSectionTitle}>ENCOMENDAS</Text>
-              <MenuItem
-                title="Monitorar Fluxo"
-                icon="desktop-outline"
-                onPress={() => router.push("/entregas/lista-entregas" as any)}
-              />
-              <MenuItem
-                title="Cadastrar Encomenda"
-                icon="add-circle-outline"
-                onPress={() => router.push("/entregas/cadastro" as any)}
-              />
-              <MenuItem
-                title="Ler QR Code (Entrada)"
-                icon="qr-code-outline"
-                color={COLORS.success}
-                onPress={() => router.push("/entregas/cadastro" as any)}
+                title="Relatórios Financeiros"
+                icon="bar-chart-outline"
+                color={COLORS.secondary}
               />
             </View>
           </View>
         </View>
       </ScrollView>
+
+      <SideMenu
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onLogout={authLogout}
+        authSessao={authSessao}
+      />
     </View>
   );
 }
@@ -186,10 +158,12 @@ const styles = StyleSheet.create({
     maxWidth: 1350,
     alignSelf: "center",
     padding: 20,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
-
-  /* STATS / KPI CARDS */
   statsRow: {
+    width: "100%",
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 15,
@@ -197,7 +171,7 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    minWidth: 160,
+    minWidth: 200,
     backgroundColor: COLORS.white,
     borderRadius: 12,
     padding: 15,
@@ -215,13 +189,48 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 20, fontWeight: "bold", color: COLORS.textMain },
   statLabel: { fontSize: 12, color: COLORS.textLight },
-
-  /* CARDS DE SEÇÃO */
+  alertBanner: {
+    width: "100%",
+    backgroundColor: COLORS.white,
+    borderRadius: SIZES.radius,
+    padding: 15,
+    marginBottom: 25,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 5,
+    borderLeftColor: COLORS.secondary,
+    ...SHADOWS.medium,
+  },
+  activeCondoBanner: {
+    width: "100%",
+    backgroundColor: COLORS.secondary,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 25,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+  activeCondoText: { color: COLORS.white, fontWeight: "bold", fontSize: 13 },
+  alertIconBg: {
+    width: 45,
+    height: 45,
+    borderRadius: 22,
+    backgroundColor: COLORS.secondary + "15",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  alertTitle: { fontSize: 15, fontWeight: "bold", color: COLORS.textMain },
+  alertMessage: { fontSize: 12, color: COLORS.textLight, lineHeight: 16 },
   sectionCard: {
     backgroundColor: COLORS.white,
     borderRadius: SIZES.radius,
     padding: 20,
     marginBottom: 20,
+    width: Platform.OS === "web" ? "48%" : "100%",
+    minWidth: 320,
     ...SHADOWS.medium,
   },
   cardHeader: {
@@ -233,60 +242,44 @@ const styles = StyleSheet.create({
     paddingBottom: 15,
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "bold",
     color: COLORS.textMain,
     marginLeft: 12,
   },
-  cardBody: { gap: 10 },
-
-  /* SUB-SEÇÕES INTERNAS */
+  cardBody: { gap: 5 },
   subSectionTitle: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#888888",
-    marginTop: 15,
-    marginBottom: 5,
+    color: COLORS.grey300,
+    marginTop: 12,
+    marginBottom: 6,
     letterSpacing: 1,
-    textTransform: "uppercase",
-  },
-  condominioName: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "#888888",
-    marginTop: 0,
-    marginBottom: 0,
-    letterSpacing: 1,
-    textTransform: "capitalize",
-    alignContent: "center",
-    textAlign: "center",
   },
   smallDivider: {
     height: 1,
     backgroundColor: COLORS.grey100,
-    marginVertical: 10,
+    marginVertical: 8,
   },
-
-  /* MENU ITEMS */
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 10,
     borderRadius: 10,
     backgroundColor: COLORS.grey100,
   },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: "center",
     alignItems: "center",
   },
   menuItemText: {
     flex: 1,
-    marginLeft: 15,
-    fontSize: 15,
+    marginLeft: 12,
+    fontSize: 14,
     color: COLORS.textMain,
     fontWeight: "500",
   },

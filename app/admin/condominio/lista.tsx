@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -24,23 +25,27 @@ export default function ListaCondominiosAdmin() {
   const { authUser, authSelecionarCondominio } = useAuthContext();
 
   const [loading, setLoading] = useState(true);
-  // ✅ Resolvido: Tipagem explícita para evitar o erro "never"
   const [condominios, setCondominios] = useState<ICondominio[]>([]);
   const [search, setSearch] = useState("");
+
+  // ✅ Estados para o Modal de Ações
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedCondo, setSelectedCondo] = useState<ICondominio | null>(null);
 
   const fetchCondominios = useCallback(async () => {
     if (!authUser?.conta_id) return;
 
     try {
       setLoading(true);
-      // ✅ Uso do Service: Centraliza a URL e o tratamento de dados
       const data = await condominioService.listarPorConta(authUser.conta_id);
 
       if (data.success) {
-        setCondominios(data.condominios);
+        // ✅ O segredo está no "?? []"
+        setCondominios(data.condominios ?? []);
       }
     } catch (error) {
       console.error("Erro ao carregar condomínios:", error);
+      setCondominios([]); // Garante que o estado não fique "sujo" em caso de erro
     } finally {
       setLoading(false);
     }
@@ -50,9 +55,28 @@ export default function ListaCondominiosAdmin() {
     fetchCondominios();
   }, [fetchCondominios]);
 
-  const handleSelect = async (id: string) => {
-    await authSelecionarCondominio(id);
-    router.replace("/admin/dashboard");
+  // 🚀 Abre as opções para o Master
+  const handleOpenActions = (item: ICondominio) => {
+    setSelectedCondo(item);
+    setModalVisible(true);
+  };
+
+  // 🛠️ Ativa o condomínio no Contexto Global e vai para o Dashboard
+  const handleGerenciar = async () => {
+    if (selectedCondo) {
+      setModalVisible(false);
+      // Agora o TS entende que o selectedCondo (ICondominio)
+      // possui o 'perfil' exigido pela função.
+      await authSelecionarCondominio(selectedCondo);
+      router.replace("/admin/dashboard" as any);
+    }
+  };
+
+  const handleEditar = () => {
+    if (selectedCondo) {
+      setModalVisible(false);
+      router.push(`/admin/condominio/cadastro?id=${selectedCondo.id}` as any);
+    }
   };
 
   const filteredData = condominios.filter((item) =>
@@ -62,7 +86,7 @@ export default function ListaCondominiosAdmin() {
   const renderItem = ({ item }: { item: ICondominio }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => handleSelect(item.id)}
+      onPress={() => handleOpenActions(item)}
       activeOpacity={0.8}
     >
       <View style={styles.cardIcon}>
@@ -87,9 +111,10 @@ export default function ListaCondominiosAdmin() {
     <View style={styles.container}>
       <Header
         tituloPagina="Meus Condomínios"
-        breadcrumb={["Admin", "Condomínios"]}
+        breadcrumb={["Admin", "Lista"]}
         showBack={true}
       />
+
       <View style={styles.contentWrapper}>
         <View style={styles.content}>
           <View style={styles.actionsRow}>
@@ -98,7 +123,6 @@ export default function ListaCondominiosAdmin() {
               <TextInput
                 style={styles.searchInput}
                 placeholder="Buscar por nome..."
-                placeholderTextColor={COLORS.grey300}
                 value={search}
                 onChangeText={setSearch}
               />
@@ -106,7 +130,7 @@ export default function ListaCondominiosAdmin() {
 
             <TouchableOpacity
               style={styles.btnAdd}
-              onPress={() => router.push("/admin/condominio/cadastro")}
+              onPress={() => router.push("/admin/condominio/cadastro" as any)}
             >
               <Ionicons name="add" size={24} color={COLORS.white} />
             </TouchableOpacity>
@@ -115,22 +139,17 @@ export default function ListaCondominiosAdmin() {
           {loading ? (
             <View style={styles.loader}>
               <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Carregando sua carteira...</Text>
             </View>
           ) : (
             <FlatList
               data={filteredData}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item, index) =>
+                item.id?.toString() ?? index.toString()
+              }
               renderItem={renderItem}
               contentContainerStyle={styles.list}
-              showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <View style={styles.emptyState}>
-                  <Ionicons
-                    name="business-outline"
-                    size={64}
-                    color={COLORS.grey200}
-                  />
                   <Text style={styles.emptyText}>
                     Nenhum condomínio encontrado.
                   </Text>
@@ -140,6 +159,69 @@ export default function ListaCondominiosAdmin() {
           )}
         </View>
       </View>
+
+      {/* 🛠️ MODAL DE AÇÕES MASTER (O SEGREDO DO UX) */}
+      <Modal visible={modalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {selectedCondo?.nome_fantasia}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={handleGerenciar}
+            >
+              <View
+                style={[
+                  styles.actionIcon,
+                  { backgroundColor: COLORS.primary + "15" },
+                ]}
+              >
+                <Ionicons
+                  name="speedometer-outline"
+                  size={24}
+                  color={COLORS.primary}
+                />
+              </View>
+              <View>
+                <Text style={styles.actionBtnTitle}>Gerenciar Operação</Text>
+                <Text style={styles.actionBtnSub}>
+                  Entrar no painel do condomínio
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionBtn} onPress={handleEditar}>
+              <View
+                style={[
+                  styles.actionIcon,
+                  { backgroundColor: COLORS.secondary + "15" },
+                ]}
+              >
+                <Ionicons
+                  name="create-outline"
+                  size={24}
+                  color={COLORS.secondary}
+                />
+              </View>
+              <View>
+                <Text style={styles.actionBtnTitle}>Editar Cadastro</Text>
+                <Text style={styles.actionBtnSub}>
+                  Alterar dados jurídicos ou endereço
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.closeBtn}
+              onPress={() => setModalVisible(false)}
+            >
+              <Text style={styles.closeBtnText}>CANCELAR</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -153,11 +235,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   content: { flex: 1, padding: 20 },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 20,
-  },
+  actionsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   searchContainer: {
     flex: 1,
     flexDirection: "row",
@@ -203,31 +281,65 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   cardInfo: { flex: 1 },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: COLORS.textMain,
-    marginBottom: 2,
-  },
-  cardSubtitle: {
-    fontSize: 13,
-    color: COLORS.textLight,
-    marginBottom: 6,
-  },
+  cardTitle: { fontSize: 16, fontWeight: "bold", color: COLORS.textMain },
+  cardSubtitle: { fontSize: 13, color: COLORS.textLight },
   cnpjBadge: {
     alignSelf: "flex-start",
     backgroundColor: COLORS.grey100,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
+    marginTop: 4,
   },
   cnpjText: {
     fontSize: 11,
-    color: COLORS.grey300, // Ajustado para melhor legibilidade
+    color: COLORS.grey300,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
   },
-  loader: { flex: 1, justifyContent: "center", alignItems: "center" },
-  loadingText: { marginTop: 10, color: COLORS.textLight },
+  loader: { flex: 1, justifyContent: "center" },
   emptyState: { alignItems: "center", marginTop: 100 },
-  emptyText: { color: COLORS.textLight, marginTop: 10, fontSize: 16 },
+  emptyText: { color: COLORS.textLight, fontSize: 16 },
+
+  /* MODAL STYLES */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "90%",
+    maxWidth: 400,
+    backgroundColor: COLORS.white,
+    borderRadius: 20,
+    padding: 25,
+    ...SHADOWS.medium,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: COLORS.primary,
+    marginBottom: 25,
+    textAlign: "center",
+  },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 15,
+    borderRadius: 12,
+    marginBottom: 12,
+    backgroundColor: COLORS.grey100,
+  },
+  actionIcon: {
+    width: 45,
+    height: 45,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  actionBtnTitle: { fontSize: 16, fontWeight: "bold", color: COLORS.textMain },
+  actionBtnSub: { fontSize: 12, color: COLORS.textLight },
+  closeBtn: { marginTop: 10, padding: 15, alignItems: "center" },
+  closeBtnText: { color: COLORS.error, fontWeight: "bold", letterSpacing: 1 },
 });

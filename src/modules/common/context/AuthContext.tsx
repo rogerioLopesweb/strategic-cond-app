@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router"; // ✅ Import necessário para o redirecionamento
 import React, {
   createContext,
   useCallback,
@@ -8,35 +9,27 @@ import React, {
   useState,
 } from "react";
 import { authService } from "../services/authService";
-import { notificationService } from "../services/notificationService";
-import { authEvents } from "../utils/authEvents";
-
+import { ICondominio } from "../types/condominioTypes"; // ✅ Importe a oficial
 // Chaves para persistência
 const USER_KEY = "@StrategicCond:user";
 const TOKEN_KEY = "@StrategicCond:token";
 const ACTIVE_CONDO_KEY = "@StrategicCond:activeCondo";
-
-export interface ICondominio {
-  id: string;
-  nome: string;
-  perfil: string;
-}
 
 export interface IUserData {
   id: string;
   nome: string;
   cpf: string;
   token?: string;
-  cargo?: string;
-  isMaster: boolean; // ✅ Define se tem acesso ao Painel Administradora
-  conta_id?: string; // ✅ ID da Conta PJ vinculada
+  isMaster: boolean; // ✅ Define acesso ao Hub da Administradora
+  conta_id?: string;
   condominios: ICondominio[];
 }
 
 export interface IAuthSessao {
   usuario: IUserData;
-  condominio: ICondominio;
-  isMorador: boolean;
+  condominio: ICondominio | null;
+  isMorador: boolean; // 🏠 Toggle para visão do morador (Home/Encomendas)
+  isMasterConta: boolean; // 👑 Toggle para visão da Administradora (Hub Global/Financeiro)
 }
 
 interface IAuthContextData {
@@ -47,7 +40,8 @@ interface IAuthContextData {
   authLoginError: string | null;
   authSigned: boolean;
   authLogin: (cpf: string, senha: string) => Promise<boolean>;
-  authSelecionarCondominio: (id: string) => Promise<void>;
+  authSelecionarCondominio: (condo: ICondominio) => Promise<void>; // ✅ Recebe o objeto completo
+  authLimparCondominio: () => Promise<void>; // ✅ Para o Master voltar ao Hub
   authLogout: () => Promise<void>;
 }
 
@@ -56,6 +50,7 @@ const AuthContext = createContext<IAuthContextData>({} as IAuthContextData);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const router = useRouter();
   const [user, setUser] = useState<IUserData | null>(null);
   const [condominioAtivo, setCondominioAtivo] = useState<ICondominio | null>(
     null,
@@ -64,14 +59,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [authLoginLoading, setAuthLoginLoading] = useState(false);
   const [authLoginError, setAuthLoginError] = useState<string | null>(null);
 
-  // ✅ Computed: Montagem da Sessão Agregada
+  // ✅ Computed: Sessão Agregada
   const authSessao = useMemo(() => {
-    if (!user || !condominioAtivo) return null;
+    if (!user) return null;
 
-    const perfil = condominioAtivo.perfil.toLowerCase();
+    const perfil = condominioAtivo?.perfil?.toLowerCase() || "";
     const perfisMorador = [
       "morador",
-      "proprietário",
       "proprietario",
       "inquilino",
       "dependente",
@@ -81,35 +75,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       usuario: user,
       condominio: condominioAtivo,
       isMorador: perfisMorador.includes(perfil),
+      isMasterConta: !!user.isMaster, // ✅ Reflete o poder global do usuário
     };
   }, [user, condominioAtivo]);
 
-  // ✅ Ouvinte para Logout Forçado
-  useEffect(() => {
-    const handleForceLogout = () => {
-      setUser(null);
-      setCondominioAtivo(null);
-    };
-    authEvents.on("forceLogout", handleForceLogout);
-    return () => authEvents.off("forceLogout", handleForceLogout);
-  }, []);
+  // ✅ Ação: Selecionar Condomínio (Entrar na visão operacional)
+  const authSelecionarCondominio = useCallback(
+    async (condo: ICondominio) => {
+      setCondominioAtivo(condo);
+      await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(condo));
 
-  // ✅ Efeito: Registro de Push Notifications
-  useEffect(() => {
-    if (authSessao) {
-      const handlePushRegistration = async () => {
-        try {
-          let token = await notificationService.registerForPushNotifications();
-          if (token) await notificationService.updateServerToken(token);
-        } catch (error) {
-          console.error("Erro push:", error);
-        }
-      };
-      handlePushRegistration();
-    }
-  }, [authSessao]);
+      // Determina o perfil dentro deste condomínio específico
+      const perfil = condo.perfil?.toLowerCase() || "";
+      const isAdminOuSindico = ["sindico", "administrador", "zelador"].includes(
+        perfil,
+      );
 
-  // ✅ Efeito: Restauração de dados do Storage (Respeitando Regras Master)
+      if (isAdminOuSindico) {
+        router.replace("/admin/dashboard");
+      } else {
+        // Portaria, Morador ou Proprietário
+        router.replace("/home");
+      }
+    },
+    [router],
+  );
+
+  // ✅ Ação: Voltar para Master (Limpar contexto do prédio)
+  const authLimparCondominio = useCallback(async () => {
+    setCondominioAtivo(null);
+    await AsyncStorage.removeItem(ACTIVE_CONDO_KEY);
+    router.replace("/admin/master-hub"); // 🚀 Volta para a visão geral da Administradora
+  }, [router]);
+
+  // ✅ Restauração de Sessão
   useEffect(() => {
     async function loadStorageData() {
       try {
@@ -120,21 +119,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         ]);
 
         if (storageUser && storageToken) {
-          const parsedUser: IUserData = JSON.parse(storageUser);
+          const parsedUser = JSON.parse(storageUser);
           setUser(parsedUser);
-
-          if (storageActive) {
-            setCondominioAtivo(JSON.parse(storageActive));
-          }
-          // 🚀 AJUSTE: Auto-seleção apenas para usuários comuns com 1 condomínio
-          else if (
-            parsedUser.condominios?.length === 1 &&
-            !parsedUser.isMaster
-          ) {
-            const unico = parsedUser.condominios[0];
-            setCondominioAtivo(unico);
-            await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(unico));
-          }
+          if (storageActive) setCondominioAtivo(JSON.parse(storageActive));
         }
       } catch (error) {
         console.error("Erro ao carregar sessão:", error);
@@ -145,66 +132,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     loadStorageData();
   }, []);
 
-  // ✅ Ação: Login (Respeitando Regras Master)
-  const authLogin = useCallback(async (cpf: string, senha: string) => {
-    setAuthLoginLoading(true);
-    setAuthLoginError(null);
-    try {
-      const res = await authService.login(cpf, senha);
-      if (res.success && res.usuario) {
-        const { token, ...userData } = res.usuario;
+  // ✅ Ação: Login Refinado
+  const authLogin = useCallback(
+    async (cpf: string, senha: string) => {
+      setAuthLoginLoading(true);
+      setAuthLoginError(null);
+      try {
+        const res = await authService.login(cpf, senha);
+        if (res.success && res.usuario) {
+          const { token, ...userData } = res.usuario;
+          if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
+          await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
 
-        if (token) await AsyncStorage.setItem(TOKEN_KEY, token);
-        await AsyncStorage.setItem(USER_KEY, JSON.stringify(userData));
+          setUser(userData);
 
-        let activeCondo = null;
+          const totalCondos = userData.condominios?.length ?? 0;
 
-        // 🚀 REGRA: Se for Master, nunca auto-seleciona (ele deve escolher no App)
-        // Se for usuário comum e tiver só 1, seleciona direto.
-        if (userData.condominios?.length === 1 && !userData.isMaster) {
-          activeCondo = userData.condominios[0];
-          await AsyncStorage.setItem(
-            ACTIVE_CONDO_KEY,
-            JSON.stringify(activeCondo),
-          );
+          // 🚀 1. REGRA MASTER: Hub Global sempre
+          if (userData.isMaster) {
+            router.replace("/admin/master-hub");
+            return true;
+          }
+
+          // 🚀 2. MÚLTIPLOS CONDOMÍNIOS (Síndico, Portaria, Morador): Vai para Seleção
+          if (totalCondos > 1) {
+            router.replace("/selecao-condominio");
+            return true;
+          }
+
+          // 🚀 3. ÚNICO CONDOMÍNIO: Ativa contexto e decide rota pelo perfil
+          if (totalCondos === 1) {
+            const condoUnico = userData.condominios[0];
+            await authSelecionarCondominio(condoUnico);
+            // A navegação aqui será feita automaticamente pelo useEffect do RootLayout ou pela authSelecionarCondominio
+            return true;
+          }
+
+          return true;
         }
-
-        setCondominioAtivo(activeCondo);
-        setUser(userData);
-        return true;
-      }
-      setAuthLoginError(res.error || "Erro ao realizar login");
-      return false;
-    } catch (err: any) {
-      setAuthLoginError(err.response?.data?.message || "Servidor indisponível");
-      return false;
-    } finally {
-      setAuthLoginLoading(false);
-    }
-  }, []);
-
-  // ✅ Ação: Seleção de Condomínio
-  const authSelecionarCondominio = useCallback(
-    async (id: string) => {
-      const escolhido = user?.condominios.find((c) => c.id === id);
-      if (escolhido) {
-        setCondominioAtivo(escolhido);
-        await AsyncStorage.setItem(ACTIVE_CONDO_KEY, JSON.stringify(escolhido));
+        setAuthLoginError(res.error || "Erro ao realizar login");
+        return false;
+      } catch (err: any) {
+        setAuthLoginError(
+          err.response?.data?.message || "Servidor indisponível",
+        );
+        return false;
+      } finally {
+        setAuthLoginLoading(false);
       }
     },
-    [user],
+    [authSelecionarCondominio, router],
   );
 
-  // ✅ Ação: Logout
   const authLogout = useCallback(async () => {
-    try {
-      await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY, ACTIVE_CONDO_KEY]);
-      setUser(null);
-      setCondominioAtivo(null);
-    } catch (error) {
-      console.error("Erro logout:", error);
-    }
-  }, []);
+    await AsyncStorage.multiRemove([USER_KEY, TOKEN_KEY, ACTIVE_CONDO_KEY]);
+    setUser(null);
+    setCondominioAtivo(null);
+    router.replace("/home" as any);
+  }, [router]);
 
   return (
     <AuthContext.Provider
@@ -217,6 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         authLogin,
         authLogout,
         authSelecionarCondominio,
+        authLimparCondominio,
         authSigned: !!user,
       }}
     >
@@ -225,9 +211,4 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 };
 
-export const useAuthContext = () => {
-  const context = useContext(AuthContext);
-  if (!context)
-    throw new Error("useAuthContext must be used within AuthProvider");
-  return context;
-};
+export const useAuthContext = () => useContext(AuthContext);

@@ -63,17 +63,34 @@ export function useEntregas() {
       ),
 
     // ✅ Padronizado conforme discutido
-    baixarEntregaQRCode: (codigoQR: string) => {
+    baixarEntregaQRCode: async (codigoQR: string) => {
       try {
-        // ✅ Converte a string do QR em objeto antes de mandar para o service
-        const dadosObj = JSON.parse(codigoQR);
-        return execute(
+        // 🛡️ 1. Validação de formato (JSON)
+        let dadosObj;
+        try {
+          dadosObj = JSON.parse(codigoQR);
+        } catch (parseErr) {
+          console.error("QR Code não é um JSON válido:", codigoQR);
+          return {
+            success: false,
+            error:
+              "Este QR Code não pertence ao StrategicCond ou está corrompido.",
+          };
+        }
+
+        // 🚀 2. Execução da API via Service
+        // O 'await' é essencial aqui para que o 'execute' retorne o valor final
+        return await execute(
           () => entregaService.registrarSaidaQRCode(dadosObj),
-          "Erro na baixa via QR Code 1",
+          "Erro ao processar a saída da encomenda",
         );
       } catch (err) {
-        // Caso alguém bipa um QR Code que não é JSON (ex: um CPF)
-        console.error("QR Code inválido");
+        // 🛡️ 3. Fallback de segurança para erros inesperados
+        console.error("Erro crítico na baixa via QR Code:", err);
+        return {
+          success: false,
+          error: "Ocorreu um erro interno ao processar a leitura.",
+        };
       }
     },
 

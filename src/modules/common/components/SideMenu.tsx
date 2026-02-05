@@ -11,15 +11,16 @@ import {
   View,
 } from "react-native";
 
-// ✅ Importações modulares
+// ✅ Importações modulares seguindo seu padrão
 import { COLORS, SHADOWS } from "../constants/theme";
-import { IAuthSessao } from "../context/AuthContext";
+import { IAuthSessao, useAuthContext } from "../context/AuthContext";
+import { maskCPF } from "../utils/mask.utils";
 
 interface ISideMenuProps {
   visible: boolean;
   onClose: () => void;
   onLogout: () => void;
-  authSessao: IAuthSessao | null; // ✅ Recebendo a sessão agregada
+  authSessao: IAuthSessao | null;
 }
 
 export const SideMenu = ({
@@ -29,84 +30,127 @@ export const SideMenu = ({
   authSessao,
 }: ISideMenuProps) => {
   const router = useRouter();
+  const { authLimparCondominio } = useAuthContext();
 
-  // Se não houver sessão ativa, o menu nem deve processar
-  if (!authSessao) return null;
+  // 🛡️ Segurança: Retorna nulo se não houver dados
+  if (!authSessao || !authSessao.usuario) return null;
 
-  const { usuario, condominio, isMorador } = authSessao;
+  const { usuario, condominio, isMasterConta } = authSessao;
 
-  // Verifica se o usuário tem mais de um condomínio para mostrar o botão de troca
-  const possuiVariosCondominios =
-    usuario.condominios && usuario.condominios.length > 1;
-
+  // 🚀 Lógica de Troca de Condomínio Diferenciada
   const handleTrocarCondominio = () => {
     onClose();
-    router.push("/selecao-condominio");
+    if (isMasterConta) {
+      // 👑 Master volta para a lista técnica de gestão (image_94d284.png)
+      router.push("/admin/condominio/lista" as any);
+    } else {
+      authLimparCondominio();
+      // 👥 Demais usuários vão para a seleção visual (image_9400a4.png)
+      router.push("/selecao-condominio");
+    }
+  };
+
+  const handleSairDoPredio = async () => {
+    onClose();
+    await authLimparCondominio(); // Master volta ao Hub Global (image_9400a4.png)
   };
 
   return (
     <Modal
       animationType="fade"
-      transparent={true}
+      transparent
       visible={visible}
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
         <SafeAreaView style={styles.menuContainer}>
+          {/* BOTÃO FECHAR */}
           <View style={styles.headerMenu}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={30} color={COLORS.primary} />
+              <Ionicons name="close" size={32} color="#2c3e50" />
             </TouchableOpacity>
           </View>
 
           <View style={styles.content}>
-            <View style={styles.avatarCircle}>
-              <Ionicons name="person" size={40} color={COLORS.primary} />
+            {/* 👤 PERFIL DO USUÁRIO (RESTAURADO - image_a52bb9.png) */}
+            <View style={styles.profileSection}>
+              <View style={styles.avatarCircle}>
+                <Ionicons name="person" size={45} color={COLORS.primary} />
+              </View>
+              <Text style={styles.userName}>{usuario.nome}</Text>
+              <Text style={styles.userDoc}>{maskCPF(usuario.cpf)}</Text>
+              <Text style={styles.userID}>ID:{usuario.id}</Text>
+
+              {/* BADGE DE NÍVEL (image_a52bb9.png) */}
+              <View
+                style={[
+                  styles.badge,
+                  {
+                    backgroundColor: isMasterConta ? "#4a90e2" : COLORS.primary,
+                  },
+                ]}
+              >
+                <Text style={styles.perfilText}>
+                  {isMasterConta
+                    ? "MASTER CONTA"
+                    : condominio?.perfil?.toUpperCase() || "USUÁRIO"}
+                </Text>
+              </View>
             </View>
 
-            <Text style={styles.label}>Condomínio</Text>
-            <Text style={styles.value}>{condominio.nome}</Text>
+            <View style={styles.divider} />
 
-            {possuiVariosCondominios && (
+            {/* 📍 CONTEXTO ATUAL (image_a52bb9.png) */}
+            <Text style={styles.label}>CONTEXTO ATUAL</Text>
+            <View style={styles.contextBox}>
+              <Ionicons name="globe-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.contextValue} numberOfLines={2}>
+                {condominio?.nome_fantasia ?? "Visão Geral (Administrador)"}
+              </Text>
+            </View>
+
+            {/* 🔄 AÇÕES DE NAVEGAÇÃO */}
+            <View style={styles.actionsContainer}>
               <TouchableOpacity
-                style={styles.changeCondoBtn}
+                style={styles.actionBtn}
                 onPress={handleTrocarCondominio}
               >
                 <Ionicons
                   name="swap-horizontal"
-                  size={16}
-                  color={COLORS.secondary}
+                  size={20}
+                  color={COLORS.primary}
                 />
-                <Text style={styles.changeCondoText}>Trocar Condomínio</Text>
+                <Text style={styles.actionText}>Trocar Condomínio</Text>
               </TouchableOpacity>
-            )}
 
-            <View style={styles.divider} />
-
-            <Text style={styles.label}>Nome do Usuário</Text>
-            <Text style={styles.value}>{usuario.nome}</Text>
-
-            <Text style={styles.label}>Documento (CPF)</Text>
-            <Text style={styles.value}>{usuario.cpf}</Text>
-
-            <Text style={styles.label}>Nível de Acesso</Text>
-            <View style={styles.badge}>
-              <Text style={styles.perfilText}>
-                {/* Prioriza o perfil vinculado ao condomínio, senão o cargo geral */}
-                {condominio.perfil ||
-                  usuario.cargo ||
-                  (isMorador ? "Morador" : "Colaborador")}
-              </Text>
+              {isMasterConta && condominio && (
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={handleSairDoPredio}
+                >
+                  <Ionicons
+                    name="apps-outline"
+                    size={20}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.actionText}>Voltar à Gestão Global</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
+          {/* 🚪 RODAPÉ: SAIR DA CONTA (RESTAURADO - image_a52bb9.png) */}
           <TouchableOpacity style={styles.footer} onPress={onLogout}>
-            <Ionicons name="log-out-outline" size={24} color={COLORS.error} />
-            <Text style={styles.logoutText}>Sair do Aplicativo</Text>
+            <Ionicons name="log-out-outline" size={26} color="#e74c3c" />
+            <Text style={styles.logoutText}>Sair da Conta</Text>
           </TouchableOpacity>
         </SafeAreaView>
 
-        <TouchableOpacity style={styles.outside} onPress={onClose} />
+        <TouchableOpacity
+          style={styles.outside}
+          activeOpacity={1}
+          onPress={onClose}
+        />
       </View>
     </Modal>
   );
@@ -119,94 +163,85 @@ const styles = StyleSheet.create({
     flexDirection: "row",
   },
   menuContainer: {
-    width: "80%",
+    width: "85%",
     maxWidth: 320,
     backgroundColor: COLORS.white,
     height: "100%",
-    padding: 30,
-    paddingLeft: 40,
+    padding: 25,
     ...SHADOWS.medium,
   },
   outside: { flex: 1 },
-  headerMenu: {
-    alignItems: "flex-end",
-    marginBottom: 10,
-    marginTop: Platform.OS === "web" ? 10 : 0,
-  },
+  headerMenu: { alignItems: "flex-end", marginBottom: 5 },
   closeBtn: { padding: 5 },
-  content: {
-    flex: 1,
-    paddingHorizontal: 5,
-  },
+  content: { flex: 1 },
+
+  /* ESTILOS PERFIL (Fiel à image_a52bb9.png) */
+  profileSection: { alignItems: "center", marginTop: 10 },
   avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.grey100,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#f8f9fa",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 15,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: "#e9ecef",
   },
-  label: {
-    fontSize: 11,
-    color: COLORS.textLight,
+  userName: {
+    fontSize: 22,
     fontWeight: "bold",
-    marginTop: 22,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
+    color: "#2c3e50",
+    textAlign: "center",
   },
-  value: {
-    fontSize: 18,
-    color: COLORS.textMain,
-    fontWeight: "600",
-    marginTop: 4,
+  userDoc: { fontSize: 13, color: "#95a5a6", marginTop: 4, letterSpacing: 1 },
+  userID: { fontSize: 9, color: "#bdc3c7", marginTop: 2, letterSpacing: 1 },
+  badge: {
+    paddingHorizontal: 15,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginTop: 12,
   },
-  changeCondoBtn: {
+  perfilText: { color: COLORS.white, fontSize: 11, fontWeight: "900" },
+
+  divider: { height: 1, backgroundColor: "#f1f3f5", marginVertical: 30 },
+
+  label: {
+    fontSize: 10,
+    color: "#bdc3c7",
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  contextBox: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
-    paddingVertical: 5,
-  },
-  changeCondoText: {
-    color: COLORS.secondary,
-    fontSize: 12,
-    fontWeight: "bold",
-    marginLeft: 5,
-    textDecorationLine: "underline",
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: 20,
-  },
-  badge: {
-    backgroundColor: COLORS.primary,
-    alignSelf: "flex-start",
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 6,
+    backgroundColor: "#f8f9fa",
+    padding: 15,
+    borderRadius: 10,
     marginTop: 10,
+    gap: 12,
   },
-  perfilText: {
-    color: COLORS.white,
-    fontSize: 11,
-    fontWeight: "bold",
-    textTransform: "uppercase",
+  contextValue: { fontSize: 15, color: "#2c3e50", fontWeight: "700", flex: 1 },
+
+  actionsContainer: { marginTop: 25, gap: 10 },
+  actionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 15,
+    paddingLeft: 20,
   },
+  actionText: { color: "#34495e", fontSize: 16, fontWeight: "600" },
+
+  /* ESTILO FOOTER (Fiel à image_a52bb9.png) */
   footer: {
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: 1,
-    borderColor: COLORS.border,
-    paddingTop: 25,
-    marginBottom: Platform.OS === "web" ? 30 : 20,
+    borderColor: "#f1f3f5",
+    paddingTop: 20,
+    marginBottom: Platform.OS === "ios" ? 30 : 15,
+    gap: 12,
   },
-  logoutText: {
-    color: COLORS.error,
-    fontSize: 16,
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
+  logoutText: { color: "#e74c3c", fontSize: 18, fontWeight: "bold" },
 });

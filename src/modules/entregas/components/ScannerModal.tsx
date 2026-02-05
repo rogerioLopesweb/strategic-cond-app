@@ -70,7 +70,7 @@ export const ScannerModal = ({
         visible: true,
         type: "error",
         title: "Erro na Leitura",
-        message: res.error || "Código inválido ou entrega já realizada.",
+        message: res?.error || "Código inválido ou entrega já realizada.",
       });
     }
   };

@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 
-// ✅ Novos caminhos modulares e constantes
+// ✅ Importações modulares
 import { COLORS, SHADOWS, SIZES } from "../constants/theme";
 import { useAuthContext } from "../context/AuthContext";
 import { SideMenu } from "./SideMenu";
@@ -18,18 +18,17 @@ interface IHeaderProps {
   tituloPagina: string;
   breadcrumb?: string[];
   showBack?: boolean;
+  onPressBack?: () => void; // ✅ Adicionado para resolver o erro de "Cannot find name"
 }
 
 export const Header = ({
   tituloPagina,
   breadcrumb,
   showBack,
+  onPressBack,
 }: IHeaderProps) => {
   const router = useRouter();
-
-  // ✅ Consumindo a nova estrutura de Sessão e Logout padronizado
   const { authSessao, authLogout } = useAuthContext();
-
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -54,54 +53,43 @@ export const Header = ({
         {/* PARTE 1: GLOBAL (BARRA ESCURA) */}
         <View style={styles.globalBar}>
           <View style={styles.leftGroup}>
-            <TouchableOpacity
-              style={styles.menuBtn}
-              onPress={() =>
-                showBack ? router.back() : setIsMenuVisible(true)
-              }
-            >
-              <Ionicons
-                name={showBack ? "arrow-back" : "menu"}
-                size={28}
-                color={COLORS.white}
-              />
-            </TouchableOpacity>
-            <View>
-              <Text style={styles.brandText}>StrategicCond</Text>
+            {showBack ? (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={onPressBack || (() => router.back())}
+              >
+                <Ionicons name="arrow-back" size={26} color={COLORS.white} />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.logoCircle}>
+                <Ionicons name="business" size={18} color={COLORS.primary} />
+              </View>
+            )}
+
+            <View style={{ marginLeft: 10 }}>
+              <Text style={styles.brandText}>STRATEGICCOND</Text>
               <Text style={styles.condoText} numberOfLines={1}>
-                {/* ✅ Nome vindo da Sessão Agregada */}
-                {authSessao?.condominio.nome || "Condomínio"}
+                {authSessao?.condominio?.nome_fantasia || "ADMINISTRADORA"}
               </Text>
             </View>
           </View>
 
+          {/* DIREITA: Menu Hamburguer */}
+          <TouchableOpacity
+            style={styles.menuBtn}
+            onPress={() => setIsMenuVisible(true)}
+          >
+            <Ionicons name="menu" size={32} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+
+        {/* PARTE 2: CONTEXTUAL (BARRA AZUL) */}
+        <View style={styles.contextBar}>
           <View style={styles.timeBadge}>
             <Text style={styles.timeText}>
               {formattedDateTime.toUpperCase()}
             </Text>
           </View>
-        </View>
-
-        {/* PARTE 2: CONTEXTUAL (BARRA AZUL COM CURVA) */}
-        <View style={styles.contextBar}>
-          {breadcrumb && breadcrumb.length > 0 && (
-            <View style={styles.breadcrumbRow}>
-              {breadcrumb.map((item, index) => (
-                <React.Fragment key={index}>
-                  <Text style={styles.breadcrumbText}>
-                    {item.toUpperCase()}
-                  </Text>
-                  {index < breadcrumb.length - 1 && (
-                    <Ionicons
-                      name="chevron-forward"
-                      size={10}
-                      color="rgba(255,255,255,0.3)"
-                    />
-                  )}
-                </React.Fragment>
-              ))}
-            </View>
-          )}
           <Text style={styles.pageTitle}>{tituloPagina}</Text>
         </View>
       </View>
@@ -109,8 +97,8 @@ export const Header = ({
       <SideMenu
         visible={isMenuVisible}
         onClose={() => setIsMenuVisible(false)}
-        onLogout={authLogout} // ✅ Ação padronizada
-        authSessao={authSessao} // ✅ Passando a sessão completa
+        onLogout={authLogout}
+        authSessao={authSessao}
       />
     </>
   );
@@ -125,19 +113,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: Platform.OS === "ios" ? 55 : 20,
-    paddingBottom: 12,
-    paddingHorizontal: SIZES.padding,
-    backgroundColor: "#2c3e50",
+    paddingTop: Platform.OS === "ios" ? 55 : 25,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    backgroundColor: "#2f4255",
   },
   leftGroup: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
   },
+  logoCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: COLORS.white,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionBtn: {
+    padding: 5,
+    marginRight: 5,
+  },
   menuBtn: {
-    marginRight: 12,
-    padding: 4,
+    padding: 5,
   },
   brandText: {
     color: "rgba(255,255,255,0.4)",
@@ -150,41 +149,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
   },
-  timeBadge: {
-    backgroundColor: "rgba(0,0,0,0.25)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: SIZES.radius,
-  },
-  timeText: {
-    color: COLORS.white,
-    fontSize: 8,
-    fontWeight: "800",
-  },
   contextBar: {
     backgroundColor: COLORS.primary,
-    paddingTop: 15,
-    paddingBottom: 15,
+    paddingTop: 12,
+    paddingBottom: 18,
     paddingHorizontal: SIZES.padding,
-    borderBottomLeftRadius: 35,
-    borderBottomRightRadius: 35,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
     alignItems: "center",
     ...SHADOWS.medium,
   },
-  breadcrumbRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
+  timeBadge: {
+    backgroundColor: "rgba(0,0,0,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
   },
-  breadcrumbText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 10,
+  timeText: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 9,
     fontWeight: "bold",
-    marginHorizontal: 4,
   },
   pageTitle: {
     color: COLORS.white,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
     textAlign: "center",
     letterSpacing: -0.5,

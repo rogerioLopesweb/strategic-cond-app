@@ -1,5 +1,5 @@
 export interface ICondominio {
-  id?: string;
+  id: string;
   nome_fantasia: string;
   razao_social: string;
   cnpj: string;
@@ -9,6 +9,7 @@ export interface ICondominio {
   cidade: string;
   estado: string;
   cep: string;
+  perfil: string;
   conta_id: string; // 👈 Obrigatório para o Multi-tenant
   ativo?: boolean;
 }

@@ -11,10 +11,10 @@ import {
 } from "react-native";
 
 // ✅ Imports Modulares
-import { Header } from "../src/modules/common/components/Header";
-import { COLORS, SHADOWS, SIZES } from "../src/modules/common/constants/theme";
-import { useAuthContext } from "../src/modules/common/context/AuthContext";
-import { ScannerModal } from "../src/modules/entregas/components/ScannerModal";
+import { Header } from "@/src/modules/common/components/Header";
+import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
+import { useAuthContext } from "@/src/modules/common/context/AuthContext";
+import { ScannerModal } from "@/src/modules/entregas/components/ScannerModal";
 
 interface IBotaoAcaoProps {
   titulo: string;
@@ -68,8 +68,8 @@ export default function Home() {
   const isAdminOuSindico = useMemo(() => {
     if (!authSessao) return false;
 
-    const perfil = authSessao.condominio.perfil?.toLowerCase() || "";
-    const cargo = authSessao.usuario.cargo?.toLowerCase() || "";
+    const perfil = authSessao?.condominio?.perfil?.toLowerCase() || "";
+    const cargo = authSessao.usuario?.cargo?.toLowerCase() || "";
     const permitidos = [
       "admin",
       "administrador",

@@ -10,52 +10,84 @@ import {
 } from "../src/modules/common/context/AuthContext";
 
 function RootLayoutNav() {
-  const { authSessao, authLoading, authSigned, authUser } = useAuthContext();
+  const { authSessao, authLoading, authSigned } = useAuthContext();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (authLoading) return;
 
+    const rootSegment = segments[0];
+    const fullPath = segments.join("/");
+
     // 📍 Identificação de Contexto
-    const rootSegment = segments[0] as string;
     const isAtLogin =
-      !segments[0] || rootSegment === "index" || rootSegment === "(auth)";
-    const isAtSelecao = rootSegment === "selecao-condominio";
-    const isAtAdminList =
-      segments[0] === "admin" && segments[1] === "condominio";
+      (segments as string[]).length === 0 ||
+      (rootSegment as any) === "(auth)" ||
+      (rootSegment as any) === "index";
 
-    const temVinculos =
-      authUser?.condominios && authUser.condominios.length > 0;
+    const isAtMasterHub = fullPath === "admin/master-hub";
+    const isAtSelecao = fullPath === "selecao-condominio";
+    const isAtHome = fullPath === "home";
+    const isAtAdminArea = rootSegment === "admin";
 
-    // 🛡️ 1. SEGURANÇA: Não autenticado e tentando acessar áreas restritas
+    // 🛡️ 1. SEGURANÇA: Não autenticado -> Login
     if (!authSigned) {
       if (!isAtLogin) router.replace("/");
       return;
     }
 
-    // 🚀 2. REGRA MASTER: Dono da conta SEM vínculos (Direto para Gestão)
-    if (authUser?.isMaster && !temVinculos) {
-      if (!isAtAdminList) {
-        // Ajuste o caminho conforme sua estrutura real de pastas em (admin)
-        router.replace("/admin/dashboard");
+    // 🚀 2. REGRA MASTER: Administradora Global
+    if (authSessao?.isMasterConta) {
+      const pathsMasterLiberados = [
+        "admin/master-hub",
+        "admin/condominio/lista",
+        "admin/condominio/cadastro",
+      ];
+      const isAtMasterAllowed = pathsMasterLiberados.includes(fullPath);
+
+      // Se não tem prédio selecionado e não está em telas liberadas -> Hub
+      if (!authSessao.condominio && !isAtMasterAllowed && !isAtSelecao) {
+        router.replace("/admin/master-hub");
       }
-      return;
+      return; // Master encerra aqui sua lógica
     }
 
-    // 🚀 3. REGRA MISTA OU COMUM: Dono com vínculos OU Morador/Zelador
-    if (authSigned) {
-      // Se ainda não escolheu o condomínio e não está na tela de seleção
-      if (!authSessao && !isAtSelecao) {
-        router.replace("/selecao-condominio");
+    // 🚀 3. REGRA COMUM: Síndico, Portaria e Morador (isMasterConta: false)
+    if (authSigned && !authSessao?.isMasterConta) {
+      // 🚩 CASO A: Ainda não escolheu o prédio (ou clicou em Trocar)
+      if (!authSessao?.condominio) {
+        if (!isAtSelecao) {
+          router.replace("/selecao-condominio");
+        }
+        return;
       }
-      // Se já escolheu o condomínio e tenta voltar pro Login/Seleção
-      else if (authSessao && (isAtLogin || isAtSelecao)) {
-        // Redireciona para a Home correta baseada no perfil
-        router.replace(authSessao.isMorador ? "/home" : "/admin/dashboard");
+
+      // 🚩 CASO B: Já escolheu o prédio -> Definir destino por perfil
+      if (authSessao.condominio) {
+        const perfil = authSessao.condominio.perfil?.toLowerCase() || "";
+        // Síndico e Zelador vão para o Admin/Dashboard
+        const isPerfilAdmin = [
+          "sindico",
+          "sindica",
+          "zelador",
+          "administrador",
+        ].includes(perfil);
+
+        if (isPerfilAdmin) {
+          // Se o Síndico estiver no Login, Seleção ou na Home errada -> Dashboard
+          if (isAtLogin || isAtSelecao || isAtHome) {
+            router.replace("/admin/dashboard");
+          }
+        } else {
+          // Portaria, Morador e Proprietário vão para a Home
+          if (isAtLogin || isAtSelecao || isAtAdminArea) {
+            router.replace("/home");
+          }
+        }
       }
     }
-  }, [authSessao, authSigned, authLoading, segments, authUser]);
+  }, [authSessao, authSigned, authLoading, segments]);
 
   return (
     <View style={styles.outerContainer}>
@@ -66,19 +98,24 @@ function RootLayoutNav() {
           contentStyle: { backgroundColor: COLORS.background },
         }}
       >
-        {/* Telas de Fluxo Inicial */}
+        {/* Telas de Entrada e Seleção */}
         <Stack.Screen name="index" />
         <Stack.Screen name="selecao-condominio" />
         <Stack.Screen name="home" />
 
+        {/* Fluxo Master (Administradora) */}
+        <Stack.Screen name="admin/master-hub" />
+        <Stack.Screen name="admin/condominio/lista" />
+        <Stack.Screen name="admin/condominio/cadastro" />
+
+        {/* Fluxo Operacional (Condomínio Específico) */}
+        <Stack.Screen name="admin/dashboard" />
+        <Stack.Screen name="admin/usuarios/lista" />
+        <Stack.Screen name="admin/usuarios/cadastro" />
+
         {/* Módulo de Entregas */}
         <Stack.Screen name="entregas/lista-entregas" />
         <Stack.Screen name="entregas/cadastro" />
-
-        {/* Módulo Administrativo (Administradora/Síndico) */}
-        <Stack.Screen name="admin/dashboard" />
-        <Stack.Screen name="admin/importacao" />
-        {/* Adicione a tela de listagem de condomínios da admin se ela existir */}
       </Stack>
     </View>
   );
@@ -94,8 +131,11 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  outerContainer: {
+  outerContainer: { flex: 1, backgroundColor: COLORS.background },
+  loadingContainer: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: COLORS.background,
   },
 });
