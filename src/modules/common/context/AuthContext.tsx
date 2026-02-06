@@ -21,6 +21,7 @@ export interface IUserData {
   cpf: string;
   token?: string;
   isMaster: boolean; // ✅ Define acesso ao Hub da Administradora
+  perfil?: string;
   conta_id?: string;
   condominios: ICondominio[];
 }
@@ -63,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const authSessao = useMemo(() => {
     if (!user) return null;
 
-    const perfil = condominioAtivo?.perfil?.toLowerCase() || "";
+    const perfilAtual = condominioAtivo?.perfil?.toLowerCase() || "";
     const perfisMorador = [
       "morador",
       "proprietario",
@@ -72,9 +73,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     ];
 
     return {
-      usuario: user,
+      usuario: {
+        ...user,
+        perfil: perfilAtual,
+      },
       condominio: condominioAtivo,
-      isMorador: perfisMorador.includes(perfil),
+      isMorador: perfisMorador.includes(perfilAtual),
       isMasterConta: !!user.isMaster, // ✅ Reflete o poder global do usuário
     };
   }, [user, condominioAtivo]);

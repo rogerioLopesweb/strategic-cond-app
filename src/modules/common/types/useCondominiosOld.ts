@@ -15,7 +15,7 @@ export const useCondominios = (conta_id?: string) => {
       setError(null);
       const res = await condominioService.listarPorConta(conta_id);
       if (res.success) {
-        setCondominios(res.condominios);
+        setCondominios(res.condominios ?? []);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || "Erro ao carregar condomínios");

@@ -165,7 +165,7 @@ export const ModalDetalhesEntrega = ({
                         <QRCode
                           value={JSON.stringify({
                             id: entrega.id,
-                            condominio_id: authSessao.condominio.id,
+                            condominio_id: authSessao.condominio?.id,
                           })}
                           size={100}
                           color="#000000"

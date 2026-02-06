@@ -69,7 +69,7 @@ export default function Home() {
     if (!authSessao) return false;
 
     const perfil = authSessao?.condominio?.perfil?.toLowerCase() || "";
-    const cargo = authSessao.usuario?.cargo?.toLowerCase() || "";
+    //const cargo = authSessao.usuario?.cargo?.toLowerCase() || "";
     const permitidos = [
       "admin",
       "administrador",
@@ -78,7 +78,7 @@ export default function Home() {
       "gerente",
     ];
 
-    return permitidos.includes(perfil) || permitidos.includes(cargo);
+    return permitidos.includes(perfil);
   }, [authSessao]);
 
   const handleSignOut = async () => {

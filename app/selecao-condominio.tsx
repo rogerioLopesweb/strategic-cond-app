@@ -56,7 +56,7 @@ export default function SelecaoCondominio() {
 
   const renderItem = ({ item }: { item: ICondominio }) => {
     const isAdmin = ["sindico", "sindica", "zelador", "administrador"].includes(
-      item.perfil?.toLowerCase(),
+      item?.perfil?.toLowerCase() || "",
     );
 
     return (

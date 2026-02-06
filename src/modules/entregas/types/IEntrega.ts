@@ -3,6 +3,8 @@
  * Seguindo o padrão de nomenclatura C# (I Prefix)
  */
 
+import { IUserData } from "../../common/context/AuthContext";
+
 export interface IEntregaRegistroDTO {
   condominio_id: string;
   unidade: string;
@@ -23,6 +25,7 @@ export interface IEntregaFiltrosDTO {
   unidade?: string;
   bloco?: string;
   retirada_urgente?: boolean;
+  usuario?: IUserData;
 }
 
 export interface IEntregaAtualizacaoDTO {

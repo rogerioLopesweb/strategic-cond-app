@@ -55,6 +55,9 @@ export const SideMenu = ({
     await authLimparCondominio(); // Master volta ao Hub Global (image_9400a4.png)
   };
 
+  // 1. Defina a lógica de quantidade (geralmente no topo do componente ou dentro do return)
+  const temMultiplosCondos = (usuario?.condominios?.length ?? 0) > 1;
+
   return (
     <Modal
       animationType="fade"
@@ -111,17 +114,19 @@ export const SideMenu = ({
 
             {/* 🔄 AÇÕES DE NAVEGAÇÃO */}
             <View style={styles.actionsContainer}>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={handleTrocarCondominio}
-              >
-                <Ionicons
-                  name="swap-horizontal"
-                  size={20}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.actionText}>Trocar Condomínio</Text>
-              </TouchableOpacity>
+              {temMultiplosCondos && (
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={handleTrocarCondominio}
+                >
+                  <Ionicons
+                    name="swap-horizontal"
+                    size={20}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.actionText}>Trocar Condomínio</Text>
+                </TouchableOpacity>
+              )}
 
               {isMasterConta && condominio && (
                 <TouchableOpacity
@@ -211,6 +216,7 @@ const styles = StyleSheet.create({
     color: "#bdc3c7",
     fontWeight: "900",
     letterSpacing: 1,
+    paddingLeft: 15,
   },
   contextBox: {
     flexDirection: "row",
@@ -229,7 +235,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     gap: 15,
-    paddingLeft: 20,
+    paddingLeft: 15,
   },
   actionText: { color: "#34495e", fontSize: 16, fontWeight: "600" },
 
@@ -240,6 +246,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: "#f1f3f5",
     paddingTop: 20,
+    paddingLeft: 15,
     marginBottom: Platform.OS === "ios" ? 30 : 15,
     gap: 12,
   },

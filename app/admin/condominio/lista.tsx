@@ -75,7 +75,7 @@ export default function ListaCondominiosAdmin() {
   const handleEditar = () => {
     if (selectedCondo) {
       setModalVisible(false);
-      router.push(`/admin/condominio/cadastro?id=${selectedCondo.id}` as any);
+      router.push(`/admin/condominio/editar/${selectedCondo.id}` as any);
     }
   };
 

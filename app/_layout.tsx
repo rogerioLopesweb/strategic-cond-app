@@ -26,7 +26,6 @@ function RootLayoutNav() {
       (rootSegment as any) === "(auth)" ||
       (rootSegment as any) === "index";
 
-    const isAtMasterHub = fullPath === "admin/master-hub";
     const isAtSelecao = fullPath === "selecao-condominio";
     const isAtHome = fullPath === "home";
     const isAtAdminArea = rootSegment === "admin";
@@ -39,34 +38,38 @@ function RootLayoutNav() {
 
     // 🚀 2. REGRA MASTER: Administradora Global
     if (authSessao?.isMasterConta) {
-      const pathsMasterLiberados = [
-        "admin/master-hub",
-        "admin/condominio/lista",
-        "admin/condominio/cadastro",
-      ];
-      const isAtMasterAllowed = pathsMasterLiberados.includes(fullPath);
+      /**
+       * 🛡️ WHITELIST INTELIGENTE
+       * Agora aceitamos rotas que COMEÇAM com o caminho desejado,
+       * permitindo que o ID dinâmico passe livremente.
+       */
+      const isAtMasterAllowed =
+        fullPath === "admin/master-hub" ||
+        fullPath === "admin/condominio/lista" ||
+        fullPath === "admin/condominio/cadastro" ||
+        fullPath.startsWith("admin/condominio/editar") || // ✅ Liberado Editar Condomínio
+        fullPath.startsWith("admin/usuarios/editar"); // ✅ Liberado Editar Usuário
 
-      // Se não tem prédio selecionado e não está em telas liberadas -> Hub
+      // Se não tem prédio selecionado e tenta acessar algo fora da whitelist -> Hub
       if (!authSessao.condominio && !isAtMasterAllowed && !isAtSelecao) {
+        console.log(
+          "👮 Master Guard: Rota não autorizada para contexto sem condomínio:",
+          fullPath,
+        );
         router.replace("/admin/master-hub");
       }
-      return; // Master encerra aqui sua lógica
+      return;
     }
 
-    // 🚀 3. REGRA COMUM: Síndico, Portaria e Morador (isMasterConta: false)
+    // 🚀 3. REGRA COMUM: Síndico, Portaria e Morador
     if (authSigned && !authSessao?.isMasterConta) {
-      // 🚩 CASO A: Ainda não escolheu o prédio (ou clicou em Trocar)
       if (!authSessao?.condominio) {
-        if (!isAtSelecao) {
-          router.replace("/selecao-condominio");
-        }
+        if (!isAtSelecao) router.replace("/selecao-condominio");
         return;
       }
 
-      // 🚩 CASO B: Já escolheu o prédio -> Definir destino por perfil
       if (authSessao.condominio) {
         const perfil = authSessao.condominio.perfil?.toLowerCase() || "";
-        // Síndico e Zelador vão para o Admin/Dashboard
         const isPerfilAdmin = [
           "sindico",
           "sindica",
@@ -75,12 +78,10 @@ function RootLayoutNav() {
         ].includes(perfil);
 
         if (isPerfilAdmin) {
-          // Se o Síndico estiver no Login, Seleção ou na Home errada -> Dashboard
           if (isAtLogin || isAtSelecao || isAtHome) {
             router.replace("/admin/dashboard");
           }
         } else {
-          // Portaria, Morador e Proprietário vão para a Home
           if (isAtLogin || isAtSelecao || isAtAdminArea) {
             router.replace("/home");
           }
@@ -98,21 +99,21 @@ function RootLayoutNav() {
           contentStyle: { backgroundColor: COLORS.background },
         }}
       >
-        {/* Telas de Entrada e Seleção */}
         <Stack.Screen name="index" />
         <Stack.Screen name="selecao-condominio" />
         <Stack.Screen name="home" />
-
-        {/* Fluxo Master (Administradora) */}
+        {/* Fluxo Master */}
         <Stack.Screen name="admin/master-hub" />
         <Stack.Screen name="admin/condominio/lista" />
         <Stack.Screen name="admin/condominio/cadastro" />
-
-        {/* Fluxo Operacional (Condomínio Específico) */}
+        <Stack.Screen name="admin/condominio/editar/[id]" />{" "}
+        {/* ✅ Adicionado aqui */}
+        {/* Fluxo Operacional */}
         <Stack.Screen name="admin/dashboard" />
         <Stack.Screen name="admin/usuarios/lista" />
         <Stack.Screen name="admin/usuarios/cadastro" />
-
+        <Stack.Screen name="admin/usuarios/editar/[id]" />{" "}
+        {/* ✅ Adicionado aqui */}
         {/* Módulo de Entregas */}
         <Stack.Screen name="entregas/lista-entregas" />
         <Stack.Screen name="entregas/cadastro" />
@@ -132,10 +133,4 @@ export default function RootLayout() {
 
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.background },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: COLORS.background,
-  },
 });
