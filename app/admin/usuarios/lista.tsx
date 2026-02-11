@@ -18,6 +18,7 @@ import { useUsuarios } from "@/src/modules/admin/hooks/useUsuarios";
 import { IUsuarioListagem } from "@/src/modules/admin/types/usuarioTypes";
 import { FeedbackBox } from "@/src/modules/common/components/FeedbackBox";
 import { Header } from "@/src/modules/common/components/Header";
+import { Pagination } from "@/src/modules/common/components/Pagination";
 import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 
@@ -26,8 +27,9 @@ export default function ListaUsuarios() {
   const { authSessao } = useAuthContext();
   const {
     usuarios,
-    usuarioFoco, // ✅ Extraído do Hook
-    getUsuarioDetalhado, // ✅ Extraído do Hook
+    pagination,
+    usuarioFoco,
+    getUsuarioDetalhado,
     loading,
     getUsuariosCondominio,
     atualizarStatus,
@@ -52,60 +54,60 @@ export default function ListaUsuarios() {
 
   const condominioId = authSessao?.condominio?.id;
 
-  // ✅ Busca inicial e sempre que o condomínio mudar
+  // ✅ Busca inicial
   useEffect(() => {
-    if (condominioId) getUsuariosCondominio(condominioId);
+    if (condominioId) {
+      getUsuariosCondominio(condominioId, { nome: filtroNome, page: 1 });
+    }
   }, [condominioId]);
 
-  // ✅ NOVA FUNÇÃO: Dispara a busca detalhada ao clicar no card
-  const handleAbrirUsuario = async (item: IUsuarioListagem) => {
-    setSelectedUser(item); // Seta o básico imediatamente para abrir o modal
-    setModalVisible(true);
-
+  // ✅ Troca de Página
+  const handlePageChange = (newPage: number) => {
     if (condominioId) {
-      // ✅ Busca Nascimento e Emergência na VPS
-      await getUsuarioDetalhado(item.id, condominioId);
+      getUsuariosCondominio(condominioId, {
+        nome: filtroNome,
+        page: newPage,
+      });
     }
   };
 
-  const showFeedback = (
-    type: "success" | "error" | "warning" | "info",
-    message: string,
-  ) => {
-    setFb({ visible: true, type, message });
+  const handleAbrirUsuario = async (item: IUsuarioListagem) => {
+    setSelectedUser(item);
+    setModalVisible(true);
+    if (condominioId) {
+      await getUsuarioDetalhado(item.id, condominioId);
+    }
   };
 
   const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
     if (!condominioId) return;
     const novoStatus = !currentStatus;
-
     try {
-      // 1. Update Otimista (UI responde na hora)
       setSelectedUser((prev) => (prev ? { ...prev, ativo: novoStatus } : null));
       atualizarUsuarioNaLista(userId, novoStatus);
-
-      // 2. API
       await atualizarStatus(userId, condominioId, novoStatus);
-
-      showFeedback(
-        "success",
-        `Usuário ${novoStatus ? "ativado" : "desativado"} com sucesso.`,
-      );
+      setFb({
+        visible: true,
+        type: "success",
+        message: `Usuário ${novoStatus ? "ativado" : "desativado"} com sucesso.`,
+      });
     } catch (error) {
-      // 3. Rollback (Volta ao estado anterior se a VPS falhar)
       setSelectedUser((prev) =>
         prev ? { ...prev, ativo: currentStatus } : null,
       );
       atualizarUsuarioNaLista(userId, currentStatus);
-      showFeedback("error", "Erro ao sincronizar com a VPS. Tente novamente.");
+      setFb({
+        visible: true,
+        type: "error",
+        message: "Erro ao sincronizar. Tente novamente.",
+      });
     }
   };
 
   const handleSearch = (text: string) => {
     setFiltroNome(text);
     if (condominioId) {
-      // Opcional: Adicionar um debounce aqui se a lista for muito grande
-      getUsuariosCondominio(condominioId, { nome: text });
+      getUsuariosCondominio(condominioId, { nome: text, page: 1 });
     }
   };
 
@@ -143,7 +145,6 @@ export default function ListaUsuarios() {
             )}
             {!item.ativo && <View style={styles.statusInativoDot} />}
           </View>
-
           <View style={styles.infoBasica}>
             <View style={styles.rowBetween}>
               <Text style={styles.nome} numberOfLines={1}>
@@ -158,14 +159,10 @@ export default function ListaUsuarios() {
             <Text style={styles.subtitulo}>{item.email}</Text>
           </View>
         </View>
-
         {item.unidades && (
           <View style={styles.unidadeContainer}>
             <Ionicons name="home" size={12} color={COLORS.primary} />
-            <Text style={styles.unidadeValor} numberOfLines={1}>
-              {" "}
-              {item.unidades}
-            </Text>
+            <Text style={styles.unidadeValor}> {item.unidades}</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -212,41 +209,54 @@ export default function ListaUsuarios() {
           </TouchableOpacity>
         </View>
 
-        {loading && !usuarios.length ? (
-          <ActivityIndicator
-            size="large"
-            color={COLORS.primary}
-            style={{ marginTop: 40 }}
-          />
-        ) : (
-          <FlatList
-            data={usuarios}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            onRefresh={() =>
-              condominioId && getUsuariosCondominio(condominioId)
-            }
-            refreshing={loading}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Ionicons
-                  name="people-outline"
-                  size={48}
-                  color={COLORS.grey300}
+        {/* 🎯 ÁREA DA LISTA TRAVADA */}
+        <View style={styles.listWrapper}>
+          {loading && !usuarios.length ? (
+            <ActivityIndicator
+              size="large"
+              color={COLORS.primary}
+              style={{ marginTop: 40 }}
+            />
+          ) : (
+            <>
+              <FlatList
+                data={usuarios}
+                keyExtractor={(item) => item.id}
+                renderItem={renderItem}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                style={{ flex: 1 }}
+                ListEmptyComponent={
+                  <View style={styles.emptyContainer}>
+                    <Ionicons
+                      name="people-outline"
+                      size={48}
+                      color={COLORS.grey300}
+                    />
+                    <Text style={styles.emptyText}>
+                      Nenhum usuário encontrado.
+                    </Text>
+                  </View>
+                }
+              />
+
+              {/* 🔢 PAGINAÇÃO FIXA NO RODAPÉ */}
+              <View style={styles.paginationContainer}>
+                <Pagination
+                  currentPage={pagination?.pagina || 1}
+                  totalPages={pagination?.total_pages || 1}
+                  onPageChange={handlePageChange}
+                  loading={loading}
                 />
-                <Text style={styles.emptyText}>Nenhum usuário encontrado.</Text>
               </View>
-            }
-          />
-        )}
+            </>
+          )}
+        </View>
       </View>
 
       <ModalInfoUsuario
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        // ✅ Prioriza o 'usuarioFoco' (detalhado) se ele existir, senão usa o básico
         user={usuarioFoco || selectedUser}
         onToggleStatus={handleToggleStatus}
       />
@@ -267,9 +277,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 15,
+    marginVertical: 15,
   },
   searchContainer: {
+    top: 10,
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -289,7 +300,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...SHADOWS.medium,
   },
-  listContent: { paddingBottom: 100 },
+
+  // 🎯 Estilos de Travamento de Scroll
+  listWrapper: {
+    flex: 1, // Ocupa todo o espaço restante
+    justifyContent: "space-between",
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  paginationContainer: {
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingVertical: 10,
+  },
+
   card: {
     backgroundColor: COLORS.white,
     padding: 15,

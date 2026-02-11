@@ -13,8 +13,9 @@ import {
   View,
 } from "react-native";
 
-// ✅ Imports seguindo a convenção modular
+// ✅ Imports modulares
 import { Header } from "@/src/modules/common/components/Header";
+import { Pagination } from "@/src/modules/common/components/Pagination"; // 👈 Novo componente
 import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 import { condominioService } from "@/src/modules/common/services/condominioService";
@@ -28,45 +29,59 @@ export default function ListaCondominiosAdmin() {
   const [condominios, setCondominios] = useState<ICondominio[]>([]);
   const [search, setSearch] = useState("");
 
-  // ✅ Estados para o Modal de Ações
+  // 🔢 Estado da Paginação
+  const [pagination, setPagination] = useState({ page: 1, total_pages: 1 });
+
+  // 🔄 Busca com Paginação e Filtro Server-side
+  const fetchCondominios = useCallback(
+    async (page = 1) => {
+      if (!authUser?.conta_id) return;
+
+      try {
+        setLoading(true);
+        // Passamos a página e o nome (filtro) para o serviço
+        const data = await condominioService.listarPorConta(authUser.conta_id, {
+          page,
+          limit: 10,
+          nome_fantasia: search, // Agora a busca acontece no banco
+        });
+
+        if (data.success) {
+          setCondominios(data.condominios ?? []);
+          // Atualiza o estado da paginação com os dados da API
+          if (data.pagination) {
+            setPagination({
+              page: data.pagination.page,
+              total_pages: data.pagination.total_pages,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Erro ao carregar condomínios:", error);
+        setCondominios([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [authUser?.conta_id, search],
+  ); // Re-executa se a busca mudar
+
+  useEffect(() => {
+    fetchCondominios(1); // Sempre volta para a página 1 ao filtrar
+  }, [search]); // Dispara busca quando o usuário digita
+
+  // --- Handlers de Ações (Mantidos) ---
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCondo, setSelectedCondo] = useState<ICondominio | null>(null);
 
-  const fetchCondominios = useCallback(async () => {
-    if (!authUser?.conta_id) return;
-
-    try {
-      setLoading(true);
-      const data = await condominioService.listarPorConta(authUser.conta_id);
-
-      if (data.success) {
-        // ✅ O segredo está no "?? []"
-        setCondominios(data.condominios ?? []);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar condomínios:", error);
-      setCondominios([]); // Garante que o estado não fique "sujo" em caso de erro
-    } finally {
-      setLoading(false);
-    }
-  }, [authUser?.conta_id]);
-
-  useEffect(() => {
-    fetchCondominios();
-  }, [fetchCondominios]);
-
-  // 🚀 Abre as opções para o Master
   const handleOpenActions = (item: ICondominio) => {
     setSelectedCondo(item);
     setModalVisible(true);
   };
 
-  // 🛠️ Ativa o condomínio no Contexto Global e vai para o Dashboard
   const handleGerenciar = async () => {
     if (selectedCondo) {
       setModalVisible(false);
-      // Agora o TS entende que o selectedCondo (ICondominio)
-      // possui o 'perfil' exigido pela função.
       await authSelecionarCondominio(selectedCondo);
       router.replace("/admin/dashboard" as any);
     }
@@ -78,10 +93,6 @@ export default function ListaCondominiosAdmin() {
       router.push(`/admin/condominio/editar/${selectedCondo.id}` as any);
     }
   };
-
-  const filteredData = condominios.filter((item) =>
-    item.nome_fantasia.toLowerCase().includes(search.toLowerCase()),
-  );
 
   const renderItem = ({ item }: { item: ICondominio }) => (
     <TouchableOpacity
@@ -136,31 +147,39 @@ export default function ListaCondominiosAdmin() {
             </TouchableOpacity>
           </View>
 
-          {loading ? (
+          {loading && condominios.length === 0 ? (
             <View style={styles.loader}>
               <ActivityIndicator size="large" color={COLORS.primary} />
             </View>
           ) : (
-            <FlatList
-              data={filteredData}
-              keyExtractor={(item, index) =>
-                item.id?.toString() ?? index.toString()
-              }
-              renderItem={renderItem}
-              contentContainerStyle={styles.list}
-              ListEmptyComponent={
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>
-                    Nenhum condomínio encontrado.
-                  </Text>
-                </View>
-              }
-            />
+            <>
+              <FlatList
+                data={condominios}
+                keyExtractor={(item) => item.id?.toString() ?? ""}
+                renderItem={renderItem}
+                contentContainerStyle={styles.list}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>
+                      Nenhum condomínio encontrado.
+                    </Text>
+                  </View>
+                }
+              />
+
+              {/* 🔢 PAGINAÇÃO COMPONETIZADA */}
+              <Pagination
+                currentPage={pagination.page}
+                totalPages={pagination.total_pages}
+                onPageChange={(page) => fetchCondominios(page)}
+                loading={loading}
+              />
+            </>
           )}
         </View>
       </View>
 
-      {/* 🛠️ MODAL DE AÇÕES MASTER (O SEGREDO DO UX) */}
+      {/* MODAL DE AÇÕES MASTER (O SEGREDO DO UX) */}
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -226,6 +245,8 @@ export default function ListaCondominiosAdmin() {
   );
 }
 
+// ... styles mantidos
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   contentWrapper: {
@@ -234,7 +255,11 @@ const styles = StyleSheet.create({
     maxWidth: 1350,
     alignSelf: "center",
   },
-  content: { flex: 1, padding: 20 },
+  content: {
+    flex: 1, // 🎯 Garante que este container ocupe a tela toda
+    padding: 20,
+    paddingBottom: 0, // Deixamos o padding inferior para a paginação
+  },
   actionsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   searchContainer: {
     flex: 1,
@@ -261,7 +286,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...SHADOWS.medium,
   },
-  list: { paddingBottom: 20 },
+  list: {
+    flexGrow: 1, // Permite que a lista se expanda
+    paddingBottom: 20, // Espaço para o último card não colar na paginação
+  },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -342,4 +370,10 @@ const styles = StyleSheet.create({
   actionBtnSub: { fontSize: 12, color: COLORS.textLight },
   closeBtn: { marginTop: 10, padding: 15, alignItems: "center" },
   closeBtnText: { color: COLORS.error, fontWeight: "bold", letterSpacing: 1 },
+  paginationContainer: {
+    backgroundColor: COLORS.background, // Mesma cor do fundo para mesclar
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingVertical: 10,
+  },
 });

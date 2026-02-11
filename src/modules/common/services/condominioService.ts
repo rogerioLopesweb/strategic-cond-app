@@ -4,13 +4,17 @@ import { ICondominio, ICondominioResponse } from "../types/condominioTypes";
 export const condominioService = {
   /**
    * Busca condomínios de uma conta específica (Visão Master)
-   * Rota: /api/condominios/por-conta
+   * Rota: /api/condominios/por-conta/:id
    */
-  listarPorConta: async (conta_id: string): Promise<ICondominioResponse> => {
+  listarPorConta: async (
+    conta_id: string,
+    filtros?: any,
+  ): Promise<ICondominioResponse> => {
     const { data } = await api.get<ICondominioResponse>(
-      `/api/condominios/por-conta`,
+      `/api/condominios/por-conta/${conta_id}`,
       {
-        params: { conta_id },
+        // Passamos apenas os filtros extras (page, limit, cidade) aqui
+        params: filtros,
       },
     );
     return data;
@@ -22,6 +26,7 @@ export const condominioService = {
     const { data } = await api.get<ICondominioResponse>(
       `/api/condominios/${id}`,
     );
+    //console.log("Resposta da API (buscarPorId):", data); // Log para depuração
     return data;
   },
 

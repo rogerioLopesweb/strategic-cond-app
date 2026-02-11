@@ -1,8 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-
+/*
 export const api = axios.create({
   baseURL: "https://cases-node-strategic-cond.c7hjrs.easypanel.host",
+  timeout: 15000,
+});*/
+
+export const api = axios.create({
+  baseURL: "http://localhost:3000",
   timeout: 15000,
 });
 

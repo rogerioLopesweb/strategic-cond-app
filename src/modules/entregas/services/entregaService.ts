@@ -10,7 +10,7 @@ import {
 
 export const entregaService = {
   registrar: async (dados: IEntregaRegistroDTO) => {
-    const response = await api.post("/api/entregas/registrar", dados);
+    const response = await api.post("/api/entregas", dados);
     return response.data;
   },
 

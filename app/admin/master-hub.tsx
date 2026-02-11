@@ -121,12 +121,12 @@ export default function MasterHub() {
             </View>
             <View style={styles.cardBody}>
               <MenuItem
-                title="Meus Condomínios"
+                title="Meus condomínios"
                 icon="list"
                 onPress={() => router.push("/admin/condominio/lista" as any)}
               />
               <MenuItem
-                title="Cadastrar Novo Prédio"
+                title="Cadastrar novo condomínio "
                 icon="add-circle"
                 onPress={() => router.push("/admin/condominio/cadastro" as any)}
               />

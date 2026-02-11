@@ -1,5 +1,6 @@
 import { FeedbackModal } from "@/src/modules/common/components/FeedbackModal";
 import { Header } from "@/src/modules/common/components/Header";
+import { Pagination } from "@/src/modules/common/components/Pagination";
 import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 import { useUnidades } from "@/src/modules/common/hooks/useUnidades";
@@ -186,6 +187,15 @@ export default function GestaoUnidades() {
           </TouchableOpacity>
         </View>
 
+        {/* ➕ FAB */}
+        <TouchableOpacity
+          style={styles.btnGeraLoteUnidades}
+          onPress={() => setModalLote(true)}
+        >
+          <Ionicons name="add" size={30} color="#fff" />
+          <Text style={styles.fabText}>GERAR LOTE</Text>
+        </TouchableOpacity>
+
         {/* 📋 LISTAGEM PRINCIPAL (UNIDADES) */}
         {loading && unidades.length === 0 ? (
           <ActivityIndicator
@@ -232,34 +242,12 @@ export default function GestaoUnidades() {
         )}
 
         {/* 🔢 PAGINAÇÃO */}
-        <View style={styles.pagination}>
-          <TouchableOpacity
-            disabled={pagination.page === 1}
-            onPress={() => buscar(pagination.page - 1)}
-            style={[styles.pageBtn, pagination.page === 1 && { opacity: 0.3 }]}
-          >
-            <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
-          </TouchableOpacity>
-          <Text style={styles.pageText}>
-            Página {pagination.page} de {pagination.total_pages}
-          </Text>
-          <TouchableOpacity
-            disabled={pagination.page >= pagination.total_pages}
-            onPress={() => buscar(pagination.page + 1)}
-            style={[
-              styles.pageBtn,
-              pagination.page >= pagination.total_pages && { opacity: 0.3 },
-            ]}
-          >
-            <Ionicons name="arrow-forward" size={20} color={COLORS.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ➕ FAB */}
-        <TouchableOpacity style={styles.fab} onPress={() => setModalLote(true)}>
-          <Ionicons name="add" size={30} color="#fff" />
-          <Text style={styles.fabText}>GERAR LOTE</Text>
-        </TouchableOpacity>
+        <Pagination
+          currentPage={pagination.page}
+          totalPages={pagination.total_pages}
+          onPageChange={(page) => buscar(page)}
+          loading={loading} // Opcional: desativa os botões enquanto carrega
+        />
 
         {/* 🏗️ MODAL GERAÇÃO EM LOTE */}
         <Modal visible={modalLote} transparent animationType="slide">
@@ -488,27 +476,39 @@ const styles = StyleSheet.create({
   },
   pageBtn: { padding: 10 },
   pageText: { fontSize: 14, color: COLORS.textSecondary },
-  fab: {
-    position: "absolute",
-    bottom: 30,
-    right: 20,
+  btnGeraLoteUnidades: {
     backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 30,
+    borderRadius: 12, // Mudança de 100 para 12 para um visual "fitted" (encaixado)
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    gap: 8,
+    paddingVertical: 12, // Altura interna do botão
+    paddingHorizontal: 20,
+    marginVertical: 15, // 🎯 O SEGREDO: Cria o espaço entre o filtro e a lista
+    alignSelf: "center", // Centraliza o botão no meio da tela
+    width: "100%", // Ocupa a largura disponível (ou retire para ser automático)
     ...SHADOWS.medium,
   },
-  fabText: { color: "#fff", fontWeight: "bold" },
+  fabText: {
+    color: "#fff",
+    fontWeight: "800", // Mais peso para leitura rápida
+    fontSize: 13,
+    letterSpacing: 1, // Espaçamento entre letras para um look moderno
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
     padding: 20,
   },
-  modalLoteContent: { backgroundColor: "#fff", padding: 25, borderRadius: 20 },
+  modalLoteContent: {
+    backgroundColor: "#fff",
+    padding: 25,
+    borderRadius: 20,
+    maxWidth: 600,
+    alignSelf: "center",
+    ...SHADOWS.medium,
+  },
   modalDetailContent: {
     backgroundColor: "#fff",
     padding: 25,

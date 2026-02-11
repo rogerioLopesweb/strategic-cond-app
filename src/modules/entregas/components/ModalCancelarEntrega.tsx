@@ -2,7 +2,10 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -55,122 +58,130 @@ export const ModalCancelarEntrega = ({
 
   return (
     <Modal visible={visible} transparent animationType="fade">
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.overlay}
+      >
         <View style={styles.container}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>Anular Lançamento</Text>
-              <Text style={styles.subtitle}>Ação de Auditoria Interna</Text>
-            </View>
-            <TouchableOpacity onPress={onClose} disabled={loading}>
-              <Ionicons
-                name="close-circle"
-                size={28}
-                color={COLORS.textLight}
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* BOX DE ERRO DA API */}
-          {!!erroApi && (
-            <View style={styles.errorAlert}>
-              <Ionicons name="alert-circle" size={18} color={COLORS.error} />
-              <Text style={styles.errorAlertText}>{erroApi}</Text>
-            </View>
-          )}
-
-          <View style={styles.warningBox}>
-            <Ionicons name="warning" size={16} color={COLORS.warning} />
-            <Text style={styles.warningText}>
-              Uma vez cancelado, os dados ficarão em modo somente leitura para
-              auditoria.
-            </Text>
-          </View>
-
-          <View style={styles.chipsRow}>
-            {frasesProntas.map((frase) => (
-              <TouchableOpacity
-                key={frase}
-                style={[
-                  styles.chip,
-                  motivo === frase && {
-                    backgroundColor: COLORS.error,
-                    borderColor: COLORS.error,
-                  },
-                ]}
-                onPress={() => {
-                  setMotivo(frase);
-                  setConfirmando(false);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    motivo === frase && {
-                      color: COLORS.white,
-                      fontWeight: "bold",
-                    },
-                  ]}
-                >
-                  {frase}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <TextInput
-            style={styles.textArea}
-            placeholder="Descreva o motivo detalhadamente..."
-            placeholderTextColor={COLORS.textLight}
-            multiline
-            value={motivo}
-            onChangeText={(txt) => {
-              setMotivo(txt);
-              setConfirmando(false);
-            }}
-            textAlignVertical="top"
-            editable={!loading}
-          />
-
-          <TouchableOpacity
-            style={[
-              styles.btnConfirmar,
-              confirmando && { backgroundColor: "#c0392b" },
-              (motivo.length < 5 || loading) && styles.btnDisabled,
-            ]}
-            onPress={handlePressBtnPrincipal}
-            disabled={loading || motivo.length < 5}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            {loading ? (
-              <ActivityIndicator color={COLORS.white} />
-            ) : (
-              <View style={styles.btnContent}>
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.title}>Anular Lançamento</Text>
+                <Text style={styles.subtitle}>Ação de Auditoria Interna</Text>
+              </View>
+              <TouchableOpacity onPress={onClose} disabled={loading}>
                 <Ionicons
-                  name={confirmando ? "alert-circle" : "trash"}
-                  size={20}
-                  color={COLORS.white}
+                  name="close-circle"
+                  size={28}
+                  color={COLORS.textLight}
                 />
-                <Text style={styles.btnText}>
-                  {confirmando
-                    ? "CLIQUE NOVAMENTE PARA CONFIRMAR"
-                    : "ANULAR LANÇAMENTO"}
-                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* BOX DE ERRO DA API */}
+            {!!erroApi && (
+              <View style={styles.errorAlert}>
+                <Ionicons name="alert-circle" size={18} color={COLORS.error} />
+                <Text style={styles.errorAlertText}>{erroApi}</Text>
               </View>
             )}
-          </TouchableOpacity>
 
-          {confirmando && !loading && (
-            <TouchableOpacity
-              style={styles.btnCancelarAcao}
-              onPress={() => setConfirmando(false)}
-            >
-              <Text style={styles.btnCancelarAcaoTexto}>
-                Desistir do cancelamento
+            <View style={styles.warningBox}>
+              <Ionicons name="warning" size={16} color={COLORS.warning} />
+              <Text style={styles.warningText}>
+                Uma vez cancelado, os dados ficarão em modo somente leitura para
+                auditoria.
               </Text>
+            </View>
+
+            <View style={styles.chipsRow}>
+              {frasesProntas.map((frase) => (
+                <TouchableOpacity
+                  key={frase}
+                  style={[
+                    styles.chip,
+                    motivo === frase && {
+                      backgroundColor: COLORS.error,
+                      borderColor: COLORS.error,
+                    },
+                  ]}
+                  onPress={() => {
+                    setMotivo(frase);
+                    setConfirmando(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      motivo === frase && {
+                        color: COLORS.white,
+                        fontWeight: "bold",
+                      },
+                    ]}
+                  >
+                    {frase}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TextInput
+              style={styles.textArea}
+              placeholder="Descreva o motivo detalhadamente..."
+              placeholderTextColor={COLORS.textLight}
+              multiline
+              value={motivo}
+              onChangeText={(txt) => {
+                setMotivo(txt);
+                setConfirmando(false);
+              }}
+              textAlignVertical="top"
+              editable={!loading}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.btnConfirmar,
+                confirmando && { backgroundColor: "#c0392b" },
+                (motivo.length < 5 || loading) && styles.btnDisabled,
+              ]}
+              onPress={handlePressBtnPrincipal}
+              disabled={loading || motivo.length < 5}
+            >
+              {loading ? (
+                <ActivityIndicator color={COLORS.white} />
+              ) : (
+                <View style={styles.btnContent}>
+                  <Ionicons
+                    name={confirmando ? "alert-circle" : "trash"}
+                    size={20}
+                    color={COLORS.white}
+                  />
+                  <Text style={styles.btnText}>
+                    {confirmando
+                      ? "CLIQUE NOVAMENTE PARA CONFIRMAR"
+                      : "ANULAR LANÇAMENTO"}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
-          )}
+
+            {confirmando && !loading && (
+              <TouchableOpacity
+                style={styles.btnCancelarAcao}
+                onPress={() => setConfirmando(false)}
+              >
+                <Text style={styles.btnCancelarAcaoTexto}>
+                  Desistir do cancelamento
+                </Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

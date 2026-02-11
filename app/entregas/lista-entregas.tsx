@@ -16,6 +16,7 @@ import {
 // ✅ Imports Modulares
 import { FeedbackModal } from "../../src/modules/common/components/FeedbackModal";
 import { Header } from "../../src/modules/common/components/Header";
+import { Pagination } from "../../src/modules/common/components/Pagination";
 import {
   COLORS,
   SHADOWS,
@@ -32,102 +33,124 @@ export default function ListaEntregas() {
   const router = useRouter();
   const { width } = useWindowDimensions();
 
-  // ✅ Hook de Entregas
-  const { listarEntregas, baixarEntregaManual, entregasLoading } =
-    useEntregas();
+  const {
+    listarEntregas,
+    baixarEntregaManual,
+    cancelarEntrega,
+    entregasLoading,
+  } = useEntregas();
 
-  const numColumns = width > 1024 ? 4 : width > 768 ? 3 : 2;
+  // 🎯 CÁLCULO DE LARGURA PRECISO PARA O GRID
+  // Respeita o maxWidth de 1350px para não cortar no lado direito em telas grandes
+  const effectiveWidth = Math.min(width, 1350);
+  const numColumns = effectiveWidth > 1024 ? 4 : effectiveWidth > 768 ? 3 : 2;
+  const cardMargin = 6;
+  const horizontalPadding = 20; // Padding do contentWrapper
+  const cardWidth =
+    (effectiveWidth - horizontalPadding * 2) / numColumns - cardMargin * 2;
 
   const [entregas, setEntregas] = useState<any[]>([]);
   const [carregandoLocal, setCarregandoLocal] = useState(false);
+  const [paginacao, setPaginacao] = useState({ pagina: 1, total_paginas: 1 });
 
-  // Filtros
+  // 📝 Filtros Cumulativos
   const [filtroUnidade, setFiltroUnidade] = useState("");
   const [filtroBloco, setFiltroBloco] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<string>("recebido");
   const [filtroUrgente, setFiltroUrgente] = useState(false);
 
-  // Modais e Seleção
   const [modalVisible, setModalVisible] = useState(false);
   const [modalBaixaVisible, setModalBaixaVisible] = useState(false);
   const [modalCancelarVisible, setModalCancelarVisible] = useState(false);
+  const [erroCancelamento, setErroCancelamento] = useState<string | null>(null);
   const [entregaSelecionada, setEntregaSelecionada] = useState<any | null>(
     null,
   );
-
   const [modalFeedback, setModalFeedback] = useState({
     visible: false,
-    type: "success" as "success" | "error" | "warning" | "confirm",
+    type: "success" as any,
     title: "",
     message: "",
   });
 
-  // ✅ 1. Função de carga memorizada (Estabilizada)
-  const carregarDados = useCallback(async () => {
-    if (authLoading || !authSessao?.condominio?.id) return;
+  const carregarDados = useCallback(
+    async (page = 1) => {
+      if (authLoading || !authSessao?.condominio?.id) return;
 
-    setCarregandoLocal(true);
-    const res = await listarEntregas({
-      pagina: 1,
-      limite: 100,
-      status: statusFiltro,
-      unidade: filtroUnidade,
-      bloco: filtroBloco,
-      retirada_urgente: filtroUrgente,
-      condominio_id: authSessao.condominio.id,
-    });
+      setCarregandoLocal(true);
+      const res = await listarEntregas({
+        pagina: page,
+        limite: 12,
+        status: statusFiltro,
+        unidade: filtroUnidade,
+        bloco: filtroBloco,
+        retirada_urgente: filtroUrgente, // 🎯 Filtro cumulativo enviado ao backend
+        condominio_id: authSessao.condominio.id,
+      });
 
-    // ✅ LOG 1: Veja aqui o que o servidor está enviando no array
-    console.log(
-      "📡 [API RESPONSE] Lista de Entregas:",
-      JSON.stringify(res.data, null, 2),
-    );
+      if (res.success) {
+        setEntregas(Array.isArray(res.data) ? res.data : []);
+        if (res.pagination) {
+          setPaginacao({
+            pagina: res.pagination.page,
+            total_paginas: res.pagination.total_pages,
+          });
+        }
+      }
+      setCarregandoLocal(false);
+    },
+    [
+      authSessao?.condominio?.id,
+      statusFiltro,
+      filtroUnidade,
+      filtroBloco,
+      filtroUrgente,
+      authLoading,
+    ],
+  );
 
-    if (res.success) {
-      setEntregas(Array.isArray(res.data) ? res.data : []);
-    }
-    setCarregandoLocal(false);
-  }, [
-    authSessao?.condominio?.id,
-    statusFiltro,
-    filtroUnidade,
-    filtroBloco,
-    filtroUrgente,
-    authLoading,
-    // listarEntregas removido daqui para evitar o loop de identidade do hook
-  ]);
-
-  // ✅ 2. useEffect com Debounce (A solução do Loop)
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      carregarDados();
-    }, 400); // Aguarda 400ms antes de disparar a busca
-
+    const delayDebounceFn = setTimeout(() => carregarDados(1), 400);
     return () => clearTimeout(delayDebounceFn);
-  }, [carregarDados]);
+  }, [filtroUnidade, filtroBloco, statusFiltro, filtroUrgente]);
 
-  const handleAbrirBaixaManual = () => {
-    setModalVisible(false);
-    setTimeout(() => setModalBaixaVisible(true), 300);
-  };
-
+  // --- Handlers de Ação ---
   const handleConfirmarBaixa = async (dados: any) => {
     if (!entregaSelecionada) return;
-
     const res = await baixarEntregaManual({
       id: entregaSelecionada.id,
       ...dados,
     });
-
     if (res.success) {
       setModalBaixaVisible(false);
       setModalFeedback({
         visible: true,
         type: "success",
-        title: "Retirada Concluída!",
-        message: "O status da encomenda foi atualizado.",
+        title: "Sucesso",
+        message: "Encomenda entregue!",
       });
-      carregarDados();
+      carregarDados(paginacao.pagina);
+    }
+  };
+
+  const handleConfirmarCancelamento = async (motivo: string) => {
+    if (!entregaSelecionada || !authSessao?.condominio?.id) return;
+    const res = await cancelarEntrega({
+      id: entregaSelecionada.id,
+      motivo,
+      condominio_id: authSessao.condominio.id,
+    });
+    if (res.success) {
+      setModalCancelarVisible(false);
+      setModalFeedback({
+        visible: true,
+        type: "success",
+        title: "Cancelada",
+        message: "Lançamento anulado.",
+      });
+      carregarDados(paginacao.pagina);
+    } else {
+      setErroCancelamento(res.error || "Erro ao cancelar.");
     }
   };
 
@@ -135,23 +158,17 @@ export default function ListaEntregas() {
     const isPendente = item.status === "recebido";
     const isCancelada = item.status === "cancelada";
     const isUrgente = item.retirada_urgente === true;
-
     let statusColor = isPendente
       ? COLORS.warning
       : isCancelada
         ? COLORS.textLight
         : COLORS.success;
-    const badgeBg = isPendente
-      ? "#fef5e7"
-      : isCancelada
-        ? COLORS.grey100
-        : "#e8f5e9";
 
     return (
       <TouchableOpacity
         style={[
           styles.card,
-          { flex: 1 / numColumns },
+          { width: cardWidth }, // 🎯 Aplicando a largura calculada correta
           isPendente && { borderColor: statusColor, borderWidth: 0.5 },
           isUrgente &&
             !isCancelada && {
@@ -172,7 +189,12 @@ export default function ListaEntregas() {
           </View>
         )}
         <View style={styles.cardHeader}>
-          <View style={[styles.unidadeBadge, { backgroundColor: badgeBg }]}>
+          <View
+            style={[
+              styles.unidadeBadge,
+              { backgroundColor: isPendente ? "#fef5e7" : "#e8f5e9" },
+            ]}
+          >
             <Text style={[styles.unidadeTextoDestaque, { color: statusColor }]}>
               {item.bloco}/{item.unidade}
             </Text>
@@ -185,15 +207,8 @@ export default function ListaEntregas() {
           <Text style={styles.tipoEmbalagemCard}>
             {item.tipo_embalagem || "Pacote"}
           </Text>
-          <View style={styles.tipoBadge}>
-            <Text style={styles.tipoTextoCard}>
-              {item.morador_tipo?.toUpperCase() || "MORADOR"}
-            </Text>
-          </View>
         </View>
-        <View
-          style={[styles.statusContainer, { borderTopColor: COLORS.border }]}
-        >
+        <View style={styles.statusContainer}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusLabel, { color: statusColor }]}>
             {isCancelada ? "CANCELADA" : isPendente ? "PENDENTE" : "ENTREGUE"}
@@ -208,7 +223,7 @@ export default function ListaEntregas() {
       <Header
         tituloPagina="Portaria & Encomendas"
         breadcrumb={["Encomendas", "Lista"]}
-        showBack={true}
+        showBack
       />
 
       <View style={styles.contentWrapper}>
@@ -226,7 +241,6 @@ export default function ListaEntregas() {
                 style={styles.input}
                 value={filtroUnidade}
                 onChangeText={setFiltroUnidade}
-                editable={!entregasLoading}
               />
             </View>
             <View
@@ -244,7 +258,6 @@ export default function ListaEntregas() {
                 value={filtroBloco}
                 onChangeText={setFiltroBloco}
                 autoCapitalize="characters"
-                editable={!entregasLoading}
               />
             </View>
           </View>
@@ -259,7 +272,6 @@ export default function ListaEntregas() {
                 },
               ]}
               onPress={() => setFiltroUrgente(!filtroUrgente)}
-              disabled={entregasLoading}
             >
               <Text
                 style={[
@@ -286,7 +298,6 @@ export default function ListaEntregas() {
                   },
                 ]}
                 onPress={() => setStatusFiltro(s.id)}
-                disabled={entregasLoading}
               >
                 <Text
                   style={[
@@ -301,47 +312,64 @@ export default function ListaEntregas() {
           </View>
         </View>
 
-        <FlatList
-          key={numColumns}
-          data={entregas}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id.toString()}
-          numColumns={numColumns}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={entregasLoading || carregandoLocal}
-              onRefresh={carregarDados}
-            />
-          }
-          ListEmptyComponent={
-            !(entregasLoading || carregandoLocal) ? (
-              <View style={styles.emptyBox}>
-                <Ionicons
-                  name="cube-outline"
-                  size={50}
-                  color={COLORS.grey200}
-                />
-                <Text style={styles.emptyText}>
-                  Nenhuma encomenda encontrada.
-                </Text>
-              </View>
-            ) : (
-              <ActivityIndicator
-                size="large"
-                color={COLORS.primary}
-                style={{ marginTop: 50 }}
+        <View style={styles.listWrapper}>
+          <FlatList
+            key={numColumns}
+            data={entregas}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id.toString()}
+            numColumns={numColumns}
+            columnWrapperStyle={
+              numColumns > 1 ? { justifyContent: "flex-start" } : null
+            }
+            contentContainerStyle={styles.list}
+            refreshControl={
+              <RefreshControl
+                refreshing={entregasLoading || carregandoLocal}
+                onRefresh={() => carregarDados(1)}
               />
-            )
-          }
-        />
+            }
+            ListEmptyComponent={
+              !(entregasLoading || carregandoLocal) ? (
+                <View style={styles.emptyBox}>
+                  <Ionicons
+                    name="cube-outline"
+                    size={50}
+                    color={COLORS.grey200}
+                  />
+                  <Text style={styles.emptyText}>
+                    Nenhuma encomenda encontrada.
+                  </Text>
+                </View>
+              ) : (
+                <ActivityIndicator
+                  size="large"
+                  color={COLORS.primary}
+                  style={{ marginTop: 50 }}
+                />
+              )
+            }
+          />
+
+          <View style={styles.paginationFixed}>
+            <Pagination
+              currentPage={paginacao.pagina}
+              totalPages={paginacao.total_paginas}
+              onPageChange={(p) => carregarDados(p)}
+              loading={entregasLoading || carregandoLocal}
+            />
+          </View>
+        </View>
       </View>
 
       <ModalDetalhesEntrega
         visible={modalVisible}
         entrega={entregaSelecionada}
         onClose={() => setModalVisible(false)}
-        onBaixa={handleAbrirBaixaManual}
+        onBaixa={() => {
+          setModalVisible(false);
+          setTimeout(() => setModalBaixaVisible(true), 300);
+        }}
         onEditar={() => {
           setModalVisible(false);
           router.push({
@@ -351,6 +379,7 @@ export default function ListaEntregas() {
         }}
         onExcluir={() => {
           setModalVisible(false);
+          setErroCancelamento(null);
           setTimeout(() => setModalCancelarVisible(true), 300);
         }}
       />
@@ -367,8 +396,9 @@ export default function ListaEntregas() {
       <ModalCancelarEntrega
         visible={modalCancelarVisible}
         onClose={() => setModalCancelarVisible(false)}
-        onConfirm={carregarDados}
+        onConfirm={handleConfirmarCancelamento}
         loading={entregasLoading}
+        erroApi={erroCancelamento}
       />
       <FeedbackModal
         {...modalFeedback}
@@ -378,22 +408,22 @@ export default function ListaEntregas() {
   );
 }
 
-// ... styles idênticos aos anteriores
 const styles = StyleSheet.create({
   safeContainer: { flex: 1, backgroundColor: COLORS.background },
   contentWrapper: {
+    flex: 1,
     width: "100%",
     maxWidth: 1350,
     alignSelf: "center",
-    flex: 1,
+    paddingHorizontal: 20,
   },
   filtroWrapper: {
     backgroundColor: COLORS.white,
     padding: 12,
-    marginHorizontal: 10,
     marginTop: 10,
     borderRadius: SIZES.radius,
     ...SHADOWS.light,
+    zIndex: 10,
   },
   searchRow: { flexDirection: "row", marginBottom: 10 },
   inputContainer: {
@@ -435,20 +465,29 @@ const styles = StyleSheet.create({
   },
   filterText: { fontSize: 8, fontWeight: "bold", color: COLORS.textLight },
   filterTextUrgente: { fontSize: 8, fontWeight: "bold", color: COLORS.error },
-  list: { padding: 6, paddingBottom: 50 },
+
+  listWrapper: { flex: 1, justifyContent: "space-between" },
+  list: { paddingVertical: 10, paddingBottom: 20 },
+  paginationFixed: {
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingVertical: 5,
+  },
+
   card: {
     backgroundColor: COLORS.white,
-    margin: 6,
+    margin: 6, // Margem fixa usada no cálculo (cardMargin)
     borderRadius: SIZES.radius,
     padding: 12,
-    minHeight: 160,
+    minHeight: 150,
     ...SHADOWS.light,
     justifyContent: "space-between",
   },
   cardHeader: { marginBottom: 5 },
-  unidadeBadge: { borderRadius: 6, paddingVertical: 6, alignItems: "center" },
+  unidadeBadge: { borderRadius: 6, paddingVertical: 4, alignItems: "center" },
   unidadeTextoDestaque: { fontSize: 16, fontWeight: "900" },
-  infoBox: { alignItems: "center", marginVertical: 8 },
+  infoBox: { alignItems: "center", marginVertical: 5 },
   nomeMoradorCard: {
     fontSize: 12,
     fontWeight: "bold",
@@ -460,14 +499,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginTop: 2,
   },
-  tipoBadge: {
-    backgroundColor: COLORS.grey100,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 6,
-  },
-  tipoTextoCard: { fontSize: 8, color: COLORS.primary, fontWeight: "800" },
   tagUrgente: {
     position: "absolute",
     top: -8,
@@ -490,6 +521,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: 1,
+    borderTopColor: COLORS.border,
     paddingTop: 8,
     justifyContent: "center",
   },

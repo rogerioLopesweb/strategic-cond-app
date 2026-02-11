@@ -74,20 +74,25 @@ export default function EditarCondominio() {
 
       // ✅ Chamada correta: Passando pelo Hook em vez de chamar a service diretamente
       const res = await buscarCondominioPorId(id!);
+      console.log("Dados carregados do condomínio:", res);
 
-      if (res.success && res.condominios?.[0]) {
-        const c = res.condominios[0];
-        setForm({
-          nome_fantasia: c.nome_fantasia,
-          razao_social: c.razao_social,
-          cnpj: maskCNPJ(c.cnpj),
-          logradouro: c.logradouro,
-          numero: c.numero,
-          bairro: c.bairro,
-          cidade: c.cidade,
-          estado: c.estado,
-          cep: maskCEP(c.cep),
-        });
+      if (res.success) {
+        // 🕵️ Lógica resiliente: Prioriza o singular, mas aceita o plural se houver
+        const c = res.condominio || (res.condominios && res.condominios[0]);
+
+        if (c) {
+          setForm({
+            nome_fantasia: c.nome_fantasia || "",
+            razao_social: c.razao_social || "",
+            cnpj: c.cnpj || "",
+            logradouro: c.logradouro || "",
+            numero: c.numero || "",
+            bairro: c.bairro || "",
+            cidade: c.cidade || "",
+            estado: c.estado || "",
+            cep: c.cep || "",
+          });
+        }
       }
     } catch (error: any) {
       setFb({

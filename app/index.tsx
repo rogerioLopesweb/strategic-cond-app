@@ -11,8 +11,8 @@ import {
 } from "react-native";
 
 // ✅ Importações do local modular
-import { COLORS, SHADOWS, SIZES } from "../src/modules/common/constants/theme";
-import { useAuthContext } from "../src/modules/common/context/AuthContext";
+import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
+import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 
 export default function Login() {
   // ✅ Usando a nova convenção de nomes do contexto

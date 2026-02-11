@@ -113,7 +113,7 @@ export default function DashboardOperacional() {
                 size={24}
                 color={COLORS.primary}
               />
-              <Text style={styles.cardTitle}>Operação do condominio</Text>
+              <Text style={styles.cardTitle}>Operação do condomínio</Text>
             </View>
             <View>
               <Text style={styles.condominioName}>

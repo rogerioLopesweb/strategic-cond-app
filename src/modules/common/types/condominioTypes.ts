@@ -14,9 +14,17 @@ export interface ICondominio {
   ativo?: boolean;
 }
 
+// 🛡️ Interface "Híbrida" - Suporta tanto Listas quanto Objetos Únicos
 export interface ICondominioResponse {
   success: boolean;
   message?: string;
-  condominio_id?: string;
-  condominios?: ICondominio[];
+  condominio_id?: string; // Usado em cadastros
+  condominios?: ICondominio[]; // Usado em listagens
+  condominio?: ICondominio; // 👈 NOVO: Usado em buscarPorId (resolve o erro TS)
+  pagination?: {
+    // 👈 Adicione isso se for usar paginação
+    total: number;
+    page: number;
+    total_pages: number;
+  };
 }

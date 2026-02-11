@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { unidadeService } from "../../common/services/unidadeService";
+import { IPaginatedResponse } from "../../common/types/types";
 import { usuarioService } from "../services/usuarioService";
 import {
   IUsuarioCadastroPayload,
@@ -10,7 +11,9 @@ import {
 export const useUsuarios = () => {
   const [loading, setLoading] = useState(false);
   const [usuarios, setUsuarios] = useState<IUsuarioListagem[]>([]);
-  const [pagination, setPagination] = useState<any>(null);
+  const [pagination, setPagination] = useState<
+    IPaginatedResponse<IUsuarioListagem>["meta"] | null
+  >(null);
 
   // ✅ ESTADO PARA O MODAL: Armazena os dados detalhados (Nascimento, Emergência, etc.)
   const [usuarioFoco, setUsuarioFoco] = useState<any>(null);
@@ -104,8 +107,14 @@ export const useUsuarios = () => {
       setLoading(true);
       try {
         const res = await usuarioService.listar(condominio_id, params);
-        setUsuarios(res.usuarios || []);
-        if (res.pagination) setPagination(res.pagination);
+        // Se for a primeira página (ou nenhuma página informada), substitui a lista.
+        // Caso contrário, anexa os novos resultados.
+        if (params?.page > 1) {
+          setUsuarios((prev) => [...prev, ...(res.data || [])]);
+        } else {
+          setUsuarios(res.data || []);
+        }
+        if (res.meta) setPagination(res.meta);
       } catch (error) {
         console.error("StrategicCond - Erro ao buscar usuários:", error);
       } finally {

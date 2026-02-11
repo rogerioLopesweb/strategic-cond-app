@@ -22,12 +22,29 @@ export const usuarioService = {
   /**
    * 2. LISTAGEM: Busca moradores e funcionários do condomínio
    */
-  async listar(condominio_id: string, params?: any) {
-    const response = await api.get<IListagemUsuariosResponse>(
-      "/api/usuarios/condominio",
-      { params: { condominio_id, ...params } },
-    );
-    return response.data;
+  async listar(
+    condominio_id: string,
+    params?: any,
+  ): Promise<IListagemUsuariosResponse> {
+    // 1. Chamamos a API, que deve retornar uma resposta paginada.
+    const response = await api.get<any>("/api/usuarios/condominio", {
+      params: { condominio_id, ...params },
+    });
+
+    const { success, data, meta } = response.data;
+
+    // 🕵️ Debug para garantir que os dados chegaram antes do mapeamento
+    console.log("Mapeando dados da API para o App:", {
+      success,
+      total: meta?.total,
+    });
+
+    // 2. Retornamos o objeto mapeado para a interface de resposta paginada padrão.
+    return {
+      success,
+      data: data || [],
+      meta: meta, // A API deve sempre retornar o objeto de metadados para esta rota.
+    };
   },
 
   /**

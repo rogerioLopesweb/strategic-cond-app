@@ -1,3 +1,5 @@
+import { IPaginatedResponse } from "../../common/types/types";
+
 // --- Types de Domínio ---
 export type TPerfilAcesso =
   | "morador"
@@ -27,16 +29,7 @@ export interface IUsuarioListagem {
   unidades_vinculadas?: any[]; // Array completo para o formulário de edição
 }
 
-export interface IListagemUsuariosResponse {
-  success: boolean;
-  usuarios: IUsuarioListagem[];
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    total_pages: number;
-  };
-}
+export type IListagemUsuariosResponse = IPaginatedResponse<IUsuarioListagem>;
 
 // --- Payloads (Entrada de Dados) ---
 
