@@ -2,7 +2,6 @@ import { api } from "../../common/services/api";
 import {
   IEntregaAtualizacaoDTO,
   IEntregaCancelamentoDTO,
-  IEntregaFiltrosDTO,
   IEntregaRegistroDTO,
   ISaidaManualDTO,
   ISaidaQRCodeDTO,
@@ -14,9 +13,16 @@ export const entregaService = {
     return response.data;
   },
 
-  listar: async (filtros: IEntregaFiltrosDTO) => {
+  listar: async (filtros: any) => {
     const response = await api.get("/api/entregas", { params: filtros });
-    return response.data;
+    const { success, data, pagination } = response.data;
+
+    // 2. Retornamos o objeto mapeado para a interface de resposta paginada padrão.
+    return {
+      success,
+      data: data || [],
+      pagination: pagination, // A API deve sempre retornar o objeto de metadados para esta rota.
+    };
   },
 
   atualizar: async (dados: IEntregaAtualizacaoDTO) => {

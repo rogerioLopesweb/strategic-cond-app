@@ -77,8 +77,8 @@ export default function EditarCondominio() {
       console.log("Dados carregados do condomínio:", res);
 
       if (res.success) {
-        // 🕵️ Lógica resiliente: Prioriza o singular, mas aceita o plural se houver
-        const c = res.condominio || (res.condominios && res.condominios[0]);
+        // A API retorna os dados dentro de 'data.props' para um item único
+        const c = res.data?.props;
 
         if (c) {
           setForm({

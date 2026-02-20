@@ -58,7 +58,7 @@ export default function GestaoUnidades() {
     carregarUnidades,
     getMoradoresUnidade,
     handleGerarLote,
-    registrarSaidaMorador, // ✅ Hook que já criamos
+    registrarSaidaMorador,
   } = useUnidades();
 
   const [filtroBloco, setFiltroBloco] = useState("");
@@ -196,58 +196,67 @@ export default function GestaoUnidades() {
           <Text style={styles.fabText}>GERAR LOTE</Text>
         </TouchableOpacity>
 
-        {/* 📋 LISTAGEM PRINCIPAL (UNIDADES) */}
-        {loading && unidades.length === 0 ? (
-          <ActivityIndicator
-            size="large"
-            color={COLORS.primary}
-            style={{ marginTop: 50 }}
-          />
-        ) : (
-          <FlatList
-            data={unidades}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingVertical: 15, paddingBottom: 100 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.cardUnidade}
-                onPress={() => abrirDetalhes(item)}
-              >
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>
-                    {item.bloco} - Unidade {item.numero_unidade}
+        {/* 🎯 ÁREA DA LISTA COM ALTURA CONTROLADA (SEM SCROLL INFINITO) */}
+        <View style={styles.listWrapper}>
+          {loading && unidades.length === 0 ? (
+            <View style={styles.loaderContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          ) : (
+            <>
+              <FlatList
+                data={unidades}
+                keyExtractor={(item) => item.id}
+                style={styles.list}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                removeClippedSubviews={true} // Melhora performance em listas paginadas
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.cardUnidade}
+                    onPress={() => abrirDetalhes(item)}
+                  >
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.cardTitle}>
+                        {item.bloco} - Unidade {item.numero_unidade}
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={COLORS.grey300}
+                      />
+                    </View>
+                    <View style={styles.cardBody}>
+                      <Ionicons
+                        name="person-circle-outline"
+                        size={16}
+                        color={COLORS.primary}
+                      />
+                      <Text style={styles.cardProprietario}>
+                        {item.nome_proprietario || "Sem proprietário vinculado"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <Text style={styles.emptyText}>
+                    Nenhuma unidade encontrada.
                   </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={COLORS.grey300}
-                  />
-                </View>
-                <View style={styles.cardBody}>
-                  <Ionicons
-                    name="person-circle-outline"
-                    size={16}
-                    color={COLORS.primary}
-                  />
-                  <Text style={styles.cardProprietario}>
-                    {item.nome_proprietario || "Sem proprietário vinculado"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>Nenhuma unidade encontrada.</Text>
-            }
-          />
-        )}
+                }
+              />
 
-        {/* 🔢 PAGINAÇÃO */}
-        <Pagination
-          currentPage={pagination.page}
-          totalPages={pagination.total_pages}
-          onPageChange={(page) => buscar(page)}
-          loading={loading} // Opcional: desativa os botões enquanto carrega
-        />
+              {/* 🔢 PAGINAÇÃO FIXA NO RODAPÉ DA ÁREA DE LISTA */}
+              <View style={styles.paginationContainer}>
+                <Pagination
+                  currentPage={pagination?.page || 1}
+                  totalPages={pagination?.total_pages || 1}
+                  onPageChange={(page) => buscar(page)}
+                  loading={loading}
+                />
+              </View>
+            </>
+          )}
+        </View>
 
         {/* 🏗️ MODAL GERAÇÃO EM LOTE */}
         <Modal visible={modalLote} transparent animationType="slide">
@@ -467,15 +476,25 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   cardProprietario: { fontSize: 13, color: COLORS.textSecondary },
-  pagination: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 15,
-    gap: 20,
+  listWrapper: {
+    flex: 1,
+    overflow: "hidden",
+    minHeight: 0, // Importante para Flexbox no Web/Android
   },
-  pageBtn: { padding: 10 },
-  pageText: { fontSize: 14, color: COLORS.textSecondary },
+  loaderContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  list: {
+    flex: 1, // 🎯 Essencial para a lista não empurrar a paginação para fora da tela
+  },
+  listContent: {
+    paddingVertical: 15,
+    paddingBottom: 30,
+  },
+  paginationContainer: {
+    backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingVertical: 10,
+  },
   btnGeraLoteUnidades: {
     backgroundColor: COLORS.primary,
     borderRadius: 12, // Mudança de 100 para 12 para um visual "fitted" (encaixado)

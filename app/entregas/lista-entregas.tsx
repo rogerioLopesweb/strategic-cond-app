@@ -51,7 +51,7 @@ export default function ListaEntregas() {
 
   const [entregas, setEntregas] = useState<any[]>([]);
   const [carregandoLocal, setCarregandoLocal] = useState(false);
-  const [paginacao, setPaginacao] = useState({ pagina: 1, total_paginas: 1 });
+  const [pagination, setPagination] = useState({ page: 1, total_pages: 1 });
 
   // 📝 Filtros Cumulativos
   const [filtroUnidade, setFiltroUnidade] = useState("");
@@ -79,8 +79,8 @@ export default function ListaEntregas() {
 
       setCarregandoLocal(true);
       const res = await listarEntregas({
-        pagina: page,
-        limite: 12,
+        page: page,
+        limit: 12,
         status: statusFiltro,
         unidade: filtroUnidade,
         bloco: filtroBloco,
@@ -91,9 +91,9 @@ export default function ListaEntregas() {
       if (res.success) {
         setEntregas(Array.isArray(res.data) ? res.data : []);
         if (res.pagination) {
-          setPaginacao({
-            pagina: res.pagination.page,
-            total_paginas: res.pagination.total_pages,
+          setPagination({
+            page: res.pagination.page,
+            total_pages: res.pagination.total_pages,
           });
         }
       }
@@ -129,7 +129,7 @@ export default function ListaEntregas() {
         title: "Sucesso",
         message: "Encomenda entregue!",
       });
-      carregarDados(paginacao.pagina);
+      carregarDados(pagination.page);
     }
   };
 
@@ -148,7 +148,7 @@ export default function ListaEntregas() {
         title: "Cancelada",
         message: "Lançamento anulado.",
       });
-      carregarDados(paginacao.pagina);
+      carregarDados(pagination.page);
     } else {
       setErroCancelamento(res.error || "Erro ao cancelar.");
     }
@@ -319,6 +319,7 @@ export default function ListaEntregas() {
             renderItem={renderItem}
             keyExtractor={(item) => item.id.toString()}
             numColumns={numColumns}
+            style={styles.flatList}
             columnWrapperStyle={
               numColumns > 1 ? { justifyContent: "flex-start" } : null
             }
@@ -353,8 +354,8 @@ export default function ListaEntregas() {
 
           <View style={styles.paginationFixed}>
             <Pagination
-              currentPage={paginacao.pagina}
-              totalPages={paginacao.total_paginas}
+              currentPage={pagination.page}
+              totalPages={pagination.total_pages}
               onPageChange={(p) => carregarDados(p)}
               loading={entregasLoading || carregandoLocal}
             />
@@ -466,7 +467,13 @@ const styles = StyleSheet.create({
   filterText: { fontSize: 8, fontWeight: "bold", color: COLORS.textLight },
   filterTextUrgente: { fontSize: 8, fontWeight: "bold", color: COLORS.error },
 
-  listWrapper: { flex: 1, justifyContent: "space-between" },
+  listWrapper: {
+    flex: 1,
+    justifyContent: "space-between",
+    overflow: "hidden", // Previne vazamento de scroll no Web
+    minHeight: 0,
+  },
+  flatList: { flex: 1 },
   list: { paddingVertical: 10, paddingBottom: 20 },
   paginationFixed: {
     backgroundColor: COLORS.background,

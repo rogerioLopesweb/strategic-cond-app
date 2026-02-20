@@ -20,6 +20,7 @@ export const unidadeService = {
     const response = await api.get<IListarUnidadesResponse>("/api/unidades", {
       params: { condominio_id, ...params },
     });
+    console.log("Resposta da API de Unidades:", response.data); // Debug
     return response.data;
   },
 

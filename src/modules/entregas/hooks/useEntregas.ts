@@ -3,7 +3,6 @@ import { entregaService } from "../services/entregaService";
 import {
   IEntregaAtualizacaoDTO,
   IEntregaCancelamentoDTO,
-  IEntregaFiltrosDTO,
   IEntregaRegistroDTO,
   ISaidaManualDTO,
 } from "../types/IEntrega";
@@ -94,7 +93,7 @@ export function useEntregas() {
       }
     },
 
-    listarEntregas: (filtros: IEntregaFiltrosDTO) =>
+    listarEntregas: (filtros: any) =>
       execute(() => entregaService.listar(filtros), "Erro ao listar entregas"),
   };
 }

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -36,6 +36,8 @@ export default function ListaUsuarios() {
     atualizarUsuarioNaLista,
   } = useUsuarios();
 
+  const flatListRef = useRef<FlatList>(null);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedUser, setSelectedUser] = useState<IUsuarioListagem | null>(
     null,
@@ -54,20 +56,28 @@ export default function ListaUsuarios() {
 
   const condominioId = authSessao?.condominio?.id;
 
-  // ✅ Busca inicial
+  // ✅ Busca com Debounce (Garante busca inicial e filtragem eficiente)
   useEffect(() => {
-    if (condominioId) {
+    if (!condominioId) return;
+
+    // Define um timer para disparar a busca após 600ms de inatividade na digitação
+    const handler = setTimeout(() => {
       getUsuariosCondominio(condominioId, { nome: filtroNome, page: 1 });
-    }
-  }, [condominioId]);
+    }, 600);
+
+    // Limpa o timer anterior se o usuário digitar novamente antes do tempo acabar
+    return () => clearTimeout(handler);
+  }, [condominioId, filtroNome]);
+
+  // ✅ Rolar para o topo quando a página mudar
+  useEffect(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, [pagination.page]);
 
   // ✅ Troca de Página
   const handlePageChange = (newPage: number) => {
     if (condominioId) {
-      getUsuariosCondominio(condominioId, {
-        nome: filtroNome,
-        page: newPage,
-      });
+      getUsuariosCondominio(condominioId, { nome: filtroNome, page: newPage });
     }
   };
 
@@ -106,9 +116,6 @@ export default function ListaUsuarios() {
 
   const handleSearch = (text: string) => {
     setFiltroNome(text);
-    if (condominioId) {
-      getUsuariosCondominio(condominioId, { nome: text, page: 1 });
-    }
   };
 
   const getBadgeStyle = (perfil: string) => {
@@ -212,20 +219,20 @@ export default function ListaUsuarios() {
         {/* 🎯 ÁREA DA LISTA TRAVADA */}
         <View style={styles.listWrapper}>
           {loading && !usuarios.length ? (
-            <ActivityIndicator
-              size="large"
-              color={COLORS.primary}
-              style={{ marginTop: 40 }}
-            />
+            <View style={styles.loader}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
           ) : (
             <>
               <FlatList
+                ref={flatListRef}
                 data={usuarios}
                 keyExtractor={(item) => item.id}
                 renderItem={renderItem}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
-                style={{ flex: 1 }}
+                style={styles.flatList}
+                removeClippedSubviews={true}
                 ListEmptyComponent={
                   <View style={styles.emptyContainer}>
                     <Ionicons
@@ -243,10 +250,10 @@ export default function ListaUsuarios() {
               {/* 🔢 PAGINAÇÃO FIXA NO RODAPÉ */}
               <View style={styles.paginationContainer}>
                 <Pagination
-                  currentPage={pagination?.pagina || 1}
+                  currentPage={pagination?.page || 1}
                   totalPages={pagination?.total_pages || 1}
                   onPageChange={handlePageChange}
-                  loading={loading}
+                  loading={loading} // Mantém os botões desativados durante o fetch
                 />
               </View>
             </>
@@ -280,7 +287,6 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   searchContainer: {
-    top: 10,
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -303,16 +309,22 @@ const styles = StyleSheet.create({
 
   // 🎯 Estilos de Travamento de Scroll
   listWrapper: {
-    flex: 1, // Ocupa todo o espaço restante
-    justifyContent: "space-between",
+    flex: 1,
+    overflow: "hidden", // Garante que no Web o scroll não "vaze"
+    minHeight: 0, // Fix para flexbox em containers aninhados
+  },
+  flatList: {
+    flex: 1,
   },
   listContent: {
+    flexGrow: 1,
     paddingBottom: 20,
   },
   paginationContainer: {
     backgroundColor: COLORS.background,
     borderTopWidth: 1,
     borderTopColor: "#eee",
+    paddingHorizontal: 5,
     paddingVertical: 10,
   },
 
@@ -382,5 +394,10 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: COLORS.textSecondary,
     fontSize: 15,
+  },
+  loader: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

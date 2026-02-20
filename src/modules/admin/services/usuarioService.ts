@@ -12,11 +12,12 @@ export const usuarioService = {
    * 1. BUSCA DETALHADA: Carrega o Raio-X do usuário para edição
    */
   async getDetalhes(usuario_id: string, condominio_id: string) {
-    const response = await api.get<{
-      success: boolean;
-      usuario: IUsuarioListagem;
-    }>("/api/usuarios/detalhes", { params: { id: usuario_id, condominio_id } });
-    return response.data;
+    // 🎯 MUDANÇA: A API retorna o usuário direto, não precisa desestruturar 'usuario'
+    const response = await api.get<IUsuarioListagem>("/api/usuarios/detalhes", {
+      params: { id: usuario_id, condominio_id },
+    });
+
+    return response.data; // Isso já é o objeto do usuário completo
   },
 
   /**
@@ -31,19 +32,19 @@ export const usuarioService = {
       params: { condominio_id, ...params },
     });
 
-    const { success, data, meta } = response.data;
+    const { success, data, pagination } = response.data;
 
     // 🕵️ Debug para garantir que os dados chegaram antes do mapeamento
     console.log("Mapeando dados da API para o App:", {
       success,
-      total: meta?.total,
+      total: pagination?.total,
     });
 
     // 2. Retornamos o objeto mapeado para a interface de resposta paginada padrão.
     return {
       success,
       data: data || [],
-      meta: meta, // A API deve sempre retornar o objeto de metadados para esta rota.
+      pagination: pagination, // A API deve sempre retornar o objeto de metadados para esta rota.
     };
   },
 
@@ -59,6 +60,7 @@ export const usuarioService = {
    * 4. ATUALIZAÇÃO: Salva dados pessoais e alteração de perfil (ex: Morador -> Síndico)
    */
   async atualizar(data: IUsuarioEdicaoPayload) {
+    console.log("Enviando dados para atualização:", data);
     const response = await api.put("/api/usuarios/perfil", data);
     return response.data;
   },
@@ -87,7 +89,7 @@ export const usuarioService = {
     condominio_id: string;
     foto_base64: string;
   }) {
-    const response = await api.post("/api/usuarios/atualizar-foto", data);
+    const response = await api.put("/api/usuarios/foto", data);
     return response.data; // Retorna { success: true, url_foto: "..." }
   },
 };

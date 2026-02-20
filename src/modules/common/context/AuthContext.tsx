@@ -138,11 +138,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ✅ Ação: Login Refinado
   const authLogin = useCallback(
-    async (cpf: string, senha: string) => {
+    async (login: string, senha: string) => {
       setAuthLoginLoading(true);
       setAuthLoginError(null);
       try {
-        const res = await authService.login(cpf, senha);
+        const res = await authService.login(login, senha);
+        console.log("Resposta do login (AuthContext):", res); // Verifique o que está vindo do backend
         if (res.success && res.usuario) {
           const { token, ...userData } = res.usuario;
           if (token) await AsyncStorage.setItem(TOKEN_KEY, token);

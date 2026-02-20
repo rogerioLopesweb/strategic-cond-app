@@ -2,10 +2,10 @@
 export interface IPaginatedResponse<T> {
   success: boolean;
   data: T[]; // Padronizado com o backend
-  meta: {
+  pagination: {
     total: number;
-    pagina: number;
-    limite: number;
+    page: number;
+    limit: number;
     total_pages: number;
   };
 }

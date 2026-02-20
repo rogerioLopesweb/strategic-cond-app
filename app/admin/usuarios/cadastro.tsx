@@ -112,8 +112,9 @@ export default function CadastroUsuario() {
       };
 
       const res = await cadastrarUsuarioCompleto(payload);
-
-      if (res.success) {
+      console.log("Resposta da API:", res); // Debug rápido para ver o que a API retornou
+      // Debug rápido para ver o que a API retornou
+      if (res.usuario_id) {
         setFb({
           visible: true,
           type: "success",

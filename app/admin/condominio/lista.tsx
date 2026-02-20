@@ -18,11 +18,17 @@ import { Header } from "@/src/modules/common/components/Header";
 import { Pagination } from "@/src/modules/common/components/Pagination"; // 👈 Novo componente
 import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
-import { condominioService } from "@/src/modules/common/services/condominioService";
+import { useCondominio } from "@/src/modules/common/hooks/useCondominio";
 import { ICondominio } from "@/src/modules/common/types/condominioTypes";
 
+const authSelecionarCondominio = (condominio: ICondominio) => {
+  // Simula a seleção do condomínio (a lógica real deve ser implementada no AuthContext)
+  console.log("Condomínio selecionado para operação:", condominio);
+  // Aqui você pode chamar uma função do AuthContext para atualizar o estado global
+};
 export default function ListaCondominiosAdmin() {
   const router = useRouter();
+  const { listarCondominiosPorConta } = useCondominio();
   const { authUser, authSelecionarCondominio } = useAuthContext();
 
   const [loading, setLoading] = useState(true);
@@ -35,24 +41,23 @@ export default function ListaCondominiosAdmin() {
   // 🔄 Busca com Paginação e Filtro Server-side
   const fetchCondominios = useCallback(
     async (page = 1) => {
-      if (!authUser?.conta_id) return;
-
       try {
         setLoading(true);
-        // Passamos a página e o nome (filtro) para o serviço
-        const data = await condominioService.listarPorConta(authUser.conta_id, {
+        const res = await listarCondominiosPorConta({
           page,
-          limit: 10,
-          nome_fantasia: search, // Agora a busca acontece no banco
+          nome_fantasia: search || undefined,
         });
 
-        if (data.success) {
-          setCondominios(data.condominios ?? []);
-          // Atualiza o estado da paginação com os dados da API
-          if (data.pagination) {
+        if (res.success) {
+          // A API retorna os dados dentro de 'data' e cada item encapsulado em 'props'
+          const listaFormatada = res.data?.map((item: any) => item.props) || [];
+
+          setCondominios(listaFormatada);
+
+          if (res.pagination) {
             setPagination({
-              page: data.pagination.page,
-              total_pages: data.pagination.total_pages,
+              page: res.pagination.page,
+              total_pages: res.pagination.total_pages,
             });
           }
         }
@@ -63,7 +68,7 @@ export default function ListaCondominiosAdmin() {
         setLoading(false);
       }
     },
-    [authUser?.conta_id, search],
+    [search],
   ); // Re-executa se a busca mudar
 
   useEffect(() => {
@@ -152,29 +157,36 @@ export default function ListaCondominiosAdmin() {
               <ActivityIndicator size="large" color={COLORS.primary} />
             </View>
           ) : (
-            <>
-              <FlatList
-                data={condominios}
-                keyExtractor={(item) => item.id?.toString() ?? ""}
-                renderItem={renderItem}
-                contentContainerStyle={styles.list}
-                ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <Text style={styles.emptyText}>
-                      Nenhum condomínio encontrado.
-                    </Text>
-                  </View>
-                }
-              />
+            <View style={styles.listWrapper}>
+              <>
+                <FlatList
+                  data={condominios}
+                  keyExtractor={(item) => item.id?.toString() ?? ""}
+                  renderItem={renderItem}
+                  style={styles.flatList}
+                  contentContainerStyle={styles.listContent}
+                  showsVerticalScrollIndicator={false}
+                  removeClippedSubviews={true}
+                  ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyText}>
+                        Nenhum condomínio encontrado.
+                      </Text>
+                    </View>
+                  }
+                />
 
-              {/* 🔢 PAGINAÇÃO COMPONETIZADA */}
-              <Pagination
-                currentPage={pagination.page}
-                totalPages={pagination.total_pages}
-                onPageChange={(page) => fetchCondominios(page)}
-                loading={loading}
-              />
-            </>
+                {/* 🔢 PAGINAÇÃO COMPONETIZADA */}
+                <View style={styles.paginationContainer}>
+                  <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.total_pages}
+                    onPageChange={(page) => fetchCondominios(page)}
+                    loading={loading}
+                  />
+                </View>
+              </>
+            </View>
           )}
         </View>
       </View>
@@ -254,11 +266,11 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 1350,
     alignSelf: "center",
+    paddingHorizontal: 20,
   },
   content: {
     flex: 1, // 🎯 Garante que este container ocupe a tela toda
-    padding: 20,
-    paddingBottom: 0, // Deixamos o padding inferior para a paginação
+    paddingVertical: 20,
   },
   actionsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
   searchContainer: {
@@ -286,8 +298,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     ...SHADOWS.medium,
   },
-  list: {
-    flexGrow: 1, // Permite que a lista se expanda
+  listWrapper: {
+    flex: 1,
+    overflow: "hidden",
+    minHeight: 0,
+  },
+  flatList: {
+    flex: 1,
+  },
+  listContent: {
+    flexGrow: 1,
     paddingBottom: 20, // Espaço para o último card não colar na paginação
   },
   card: {

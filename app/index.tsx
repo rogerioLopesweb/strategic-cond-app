@@ -18,20 +18,20 @@ export default function Login() {
   // ✅ Usando a nova convenção de nomes do contexto
   const { authLogin, authLoginLoading, authLoginError } = useAuthContext();
 
-  const [cpf, setCpf] = useState("");
+  const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
   const [validacaoErro, setValidacaoErro] = useState("");
 
   const handleLogin = async () => {
     setValidacaoErro("");
 
-    if (!cpf.trim() || !senha.trim()) {
+    if (!login.trim() || !senha.trim()) {
       setValidacaoErro("* Preencha todos os campos");
       return;
     }
 
     // ✅ Chamada com o novo nome da função
-    const sucesso = await authLogin(cpf, senha);
+    const sucesso = await authLogin(login, senha);
 
     if (sucesso) {
       console.log(
@@ -52,12 +52,12 @@ export default function Login() {
           <Text style={styles.subtitulo}>Acesso ao Sistema</Text>
 
           <TextInput
-            placeholder="CPF"
+            placeholder="Login CPF ou E-mail"
             placeholderTextColor={COLORS.textLight}
-            style={[styles.input, validacaoErro && !cpf && styles.inputErro]}
-            value={cpf}
+            style={[styles.input, validacaoErro && !login && styles.inputErro]}
+            value={login}
             onChangeText={(text) => {
-              setCpf(text);
+              setLogin(text);
               setValidacaoErro("");
             }}
             keyboardType="numeric"

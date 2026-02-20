@@ -1,5 +1,9 @@
 import { api } from "../../common/services/api";
-import { ICondominio, ICondominioResponse } from "../types/condominioTypes";
+import {
+  ICondominio,
+  ICondominioResponse,
+  ICondominiosFilter,
+} from "../types/condominioTypes";
 
 export const condominioService = {
   /**
@@ -7,16 +11,13 @@ export const condominioService = {
    * Rota: /api/condominios/por-conta/:id
    */
   listarPorConta: async (
-    conta_id: string,
-    filtros?: any,
+    filtros?: ICondominiosFilter,
   ): Promise<ICondominioResponse> => {
-    const { data } = await api.get<ICondominioResponse>(
-      `/api/condominios/por-conta/${conta_id}`,
-      {
-        // Passamos apenas os filtros extras (page, limit, cidade) aqui
-        params: filtros,
-      },
-    );
+    const { data } = await api.get<ICondominioResponse>(`/api/condominios`, {
+      // Passamos apenas os filtros extras (page, limit, cidade) aqui
+      params: filtros,
+    });
+    console.log("Resposta da API (listarPorConta):", data); // Log para depuração
     return data;
   },
   /**

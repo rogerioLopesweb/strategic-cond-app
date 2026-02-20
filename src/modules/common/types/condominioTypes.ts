@@ -18,13 +18,19 @@ export interface ICondominio {
 export interface ICondominioResponse {
   success: boolean;
   message?: string;
-  condominio_id?: string; // Usado em cadastros
-  condominios?: ICondominio[]; // Usado em listagens
-  condominio?: ICondominio; // 👈 NOVO: Usado em buscarPorId (resolve o erro TS)
+  data?: any; // A API retorna os dados envelopados em 'data' e 'props'
   pagination?: {
     // 👈 Adicione isso se for usar paginação
     total: number;
     page: number;
     total_pages: number;
   };
+}
+export interface ICondominiosFilter {
+  cidade?: string;
+  estado?: string;
+  nome_fantasia?: string;
+  cnpj?: string;
+  page?: number;
+  limit?: number;
 }

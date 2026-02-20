@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import {
   IGerarLotePayload,
   IMoradorUnidade,
+  IPaginationData,
   IUnidade,
   IVincularMoradorPayload, // ✅ Importação corrigida
 } from "../../common/types/unidadeTypes";
@@ -10,9 +11,10 @@ import { unidadeService } from "../services/unidadeService";
 export const useUnidades = () => {
   const [loading, setLoading] = useState(false);
   const [unidades, setUnidades] = useState<IUnidade[]>([]);
-  const [pagination, setPagination] = useState({
+  const [pagination, setPagination] = useState<IPaginationData>({
     total: 0,
     page: 1,
+    limit: 10,
     total_pages: 1,
   });
 

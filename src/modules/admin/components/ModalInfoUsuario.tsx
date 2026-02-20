@@ -15,12 +15,12 @@ import {
 } from "react-native";
 import { FeedbackBox } from "../../common/components/FeedbackBox"; // ✅ Importado
 import { COLORS, SHADOWS } from "../../common/constants/theme";
-import { IUsuarioListagem } from "../types/usuarioTypes";
+import { IUsuarioDetalhes, IUsuarioListagem } from "../types/usuarioTypes";
 
 interface IModalInfoUsuarioProps {
   visible: boolean;
   onClose: () => void;
-  user: IUsuarioListagem | null;
+  user: IUsuarioListagem | IUsuarioDetalhes | null;
   onToggleStatus: (userId: string, currentStatus: boolean) => Promise<void>;
 }
 
@@ -189,7 +189,15 @@ export const ModalInfoUsuario = ({
 
             <InfoRow
               label="Unidades"
-              value={user.unidades}
+              value={
+                user &&
+                "unidades_vinculadas" in user &&
+                Array.isArray(user.unidades_vinculadas)
+                  ? user.unidades_vinculadas
+                      .map((uv) => `${uv.bloco}-${uv.numero_unidade}`)
+                      .join(", ")
+                  : (user as IUsuarioListagem)?.unidades || "---"
+              }
               icon="home-outline"
             />
             <InfoRow

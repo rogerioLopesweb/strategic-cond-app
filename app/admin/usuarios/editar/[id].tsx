@@ -88,6 +88,7 @@ export default function EditarUsuario() {
       id as string,
       authSessao?.condominio?.id || "",
     );
+
     if (res) {
       const dataFormatada = formatarDataParaExibicao(res.data_nascimento);
 

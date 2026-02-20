@@ -1,9 +1,11 @@
 import { useCallback, useState } from "react";
 import { unidadeService } from "../../common/services/unidadeService";
 import { IPaginatedResponse } from "../../common/types/types";
+import { IVincularMoradorPayload } from "../../common/types/unidadeTypes";
 import { usuarioService } from "../services/usuarioService";
 import {
   IUsuarioCadastroPayload,
+  IUsuarioDetalhes, // Assumindo que você tem um tipo para os detalhes do usuário
   IUsuarioEdicaoPayload,
   IUsuarioListagem,
 } from "../types/usuarioTypes";
@@ -12,11 +14,16 @@ export const useUsuarios = () => {
   const [loading, setLoading] = useState(false);
   const [usuarios, setUsuarios] = useState<IUsuarioListagem[]>([]);
   const [pagination, setPagination] = useState<
-    IPaginatedResponse<IUsuarioListagem>["meta"] | null
-  >(null);
+    IPaginatedResponse<IUsuarioListagem>["pagination"]
+  >({
+    total: 0,
+    page: 1,
+    limit: 10,
+    total_pages: 1,
+  });
 
   // ✅ ESTADO PARA O MODAL: Armazena os dados detalhados (Nascimento, Emergência, etc.)
-  const [usuarioFoco, setUsuarioFoco] = useState<any>(null);
+  const [usuarioFoco, setUsuarioFoco] = useState<IUsuarioDetalhes | null>(null);
 
   /**
    * 1. BUSCA DETALHADA: Carrega o Raio-X do usuário (Dados + Unidades Ativas)
@@ -27,17 +34,19 @@ export const useUsuarios = () => {
   ) => {
     setLoading(true);
     try {
-      const res = await usuarioService.getDetalhes(usuario_id, condominio_id);
+      const usuario = (await usuarioService.getDetalhes(
+        usuario_id,
+        condominio_id,
+      )) as IUsuarioDetalhes;
 
-      if (res.success) {
-        // ✅ Salva no estado para o Modal reagir automaticamente
-        setUsuarioFoco(res.usuario);
-        return res.usuario;
+      // 🎯 MUDANÇA: Checamos se veio um objeto válido (ex: tem ID) em vez de res.success
+      if (usuario && usuario.id) {
+        setUsuarioFoco(usuario);
+        return usuario; // Retorna o objeto direto para a página usar
       }
+
       return null;
     } catch (error) {
-      console.error("StrategicCond - Erro ao buscar detalhes:", error);
-      return null;
     } finally {
       setLoading(false);
     }
@@ -86,7 +95,7 @@ export const useUsuarios = () => {
   /**
    * 4. VINCULAR NOVA UNIDADE: Adiciona imóvel via Bloco/Número
    */
-  const vincularNovaUnidade = async (data: any) => {
+  const vincularNovaUnidade = async (data: IVincularMoradorPayload) => {
     setLoading(true);
     try {
       const res = await unidadeService.vincularMorador(data);
@@ -107,14 +116,8 @@ export const useUsuarios = () => {
       setLoading(true);
       try {
         const res = await usuarioService.listar(condominio_id, params);
-        // Se for a primeira página (ou nenhuma página informada), substitui a lista.
-        // Caso contrário, anexa os novos resultados.
-        if (params?.page > 1) {
-          setUsuarios((prev) => [...prev, ...(res.data || [])]);
-        } else {
-          setUsuarios(res.data || []);
-        }
-        if (res.meta) setPagination(res.meta);
+        setUsuarios(res.data || []);
+        if (res.pagination) setPagination(res.pagination);
       } catch (error) {
         console.error("StrategicCond - Erro ao buscar usuários:", error);
       } finally {

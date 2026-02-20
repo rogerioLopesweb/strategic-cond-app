@@ -69,7 +69,6 @@ export default function Home() {
     if (!authSessao) return false;
 
     const perfil = authSessao?.condominio?.perfil?.toLowerCase() || "";
-    //const cargo = authSessao.usuario?.cargo?.toLowerCase() || "";
     const permitidos = [
       "admin",
       "administrador",
@@ -89,6 +88,10 @@ export default function Home() {
   // Se por algum motivo a sessão cair mas a tela não disparar o redirect do layout imediatamente
   if (!authSessao) return null;
 
+  // Cores temáticas para os módulos
+  const COR_ENTREGAS = "#6b93c1";
+  const COR_VISITANTES = "#10B981"; // Verde Esmeralda para diferenciar bem
+
   return (
     <View style={styles.container}>
       <Header
@@ -102,8 +105,11 @@ export default function Home() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contentWrapper}>
+          {/* ==============================================
+              MÓDULO: ENTREGAS E ENCOMENDAS
+          ============================================== */}
           <Text style={styles.labelSessao}>
-            {authSessao.isMorador ? "MINHA ÁREA" : "SERVIÇOS DISPONÍVEIS"}
+            {authSessao.isMorador ? "MINHAS ENCOMENDAS" : "MÓDULO DE ENTREGAS"}
           </Text>
 
           {!authSessao.isMorador && (
@@ -111,14 +117,14 @@ export default function Home() {
               titulo="Cadastrar Entrega"
               subTitulo="Registrar novo pacote recebido"
               icone="cube-outline"
-              cor={COLORS.secondary}
+              cor={COR_ENTREGAS}
               rota="/entregas/cadastro"
             />
           )}
 
           <BotaoAcao
             titulo={
-              authSessao.isMorador ? "Minhas Encomendas" : "Lista de Encomendas"
+              authSessao.isMorador ? "Lista de Pacotes" : "Lista de Encomendas"
             }
             subTitulo={
               authSessao.isMorador
@@ -126,7 +132,7 @@ export default function Home() {
                 : "Ver, filtrar e gerenciar entregas"
             }
             icone="list-outline"
-            cor={COLORS.primary}
+            cor={COR_ENTREGAS}
             rota="/entregas/lista-entregas"
           />
 
@@ -135,9 +141,53 @@ export default function Home() {
               titulo="Ler QR Code"
               subTitulo="Baixa rápida de saída de pacotes"
               icone="qr-code-outline"
-              cor="#e67e22"
+              cor={COR_ENTREGAS}
               onPress={() => setIsScannerVisible(true)}
             />
+          )}
+
+          <View style={styles.divider} />
+
+          {/* ==============================================
+              MÓDULO: VISITANTES E ACESSOS
+          ============================================== */}
+          <Text style={styles.labelSessao}>
+            {authSessao.isMorador ? "MEUS VISITANTES" : "CONTROLE DE ACESSO"}
+          </Text>
+
+          {!authSessao.isMorador && (
+            <BotaoAcao
+              titulo="Registrar Entrada"
+              subTitulo="Cadastrar e liberar novo visitante"
+              icone="person-add-outline"
+              cor={COR_VISITANTES}
+              rota="/visitantes/cadastro" // Próxima tela que faremos
+            />
+          )}
+
+          <BotaoAcao
+            titulo={
+              authSessao.isMorador
+                ? "Histórico de Visitas"
+                : "Lista de Visitantes"
+            }
+            subTitulo={
+              authSessao.isMorador
+                ? "Veja quem visitou sua unidade"
+                : "Gerenciar quem está dentro do condomínio"
+            }
+            icone="people-outline"
+            cor={COR_VISITANTES}
+            rota="/visitantes/lista-visitantes" // A tela que acabamos de criar
+          />
+
+          <View style={styles.divider} />
+
+          {/* ==============================================
+              MÓDULO: ADMIN E SISTEMA
+          ============================================== */}
+          {isAdminOuSindico && (
+            <Text style={styles.labelSessao}>ADMINISTRAÇÃO</Text>
           )}
 
           {/* ✅ Botão Admin com Trava de Perfil */}
@@ -146,13 +196,10 @@ export default function Home() {
               titulo="Painel Administrativo"
               subTitulo="Gestão estratégica do condomínio"
               icone="settings-outline"
-              cor={COLORS.primary}
+              cor={COLORS.textMain}
               rota="/admin/dashboard"
             />
           )}
-
-          <View style={styles.divider} />
-          <Text style={styles.labelSessao}>SISTEMA</Text>
 
           <TouchableOpacity style={styles.botaoSair} onPress={handleSignOut}>
             <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
@@ -180,12 +227,14 @@ const styles = StyleSheet.create({
     maxWidth: 1350,
     alignSelf: "center",
     padding: 20,
+    paddingBottom: 40,
   },
   labelSessao: {
     fontSize: 12,
     fontWeight: "800",
     color: COLORS.textLight,
     marginBottom: 15,
+    marginTop: 10,
     letterSpacing: 1,
     marginLeft: 5,
   },
@@ -211,12 +260,13 @@ const styles = StyleSheet.create({
   textoContainer: { flex: 1, marginLeft: 15 },
   tituloAcao: { fontSize: 16, fontWeight: "bold", color: COLORS.textMain },
   subTituloAcao: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 20 },
+  divider: { height: 1, backgroundColor: COLORS.border, marginVertical: 10 },
   botaoSair: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     padding: 15,
+    marginTop: 10,
   },
   textoSair: { color: COLORS.error, fontWeight: "bold", marginLeft: 10 },
 });

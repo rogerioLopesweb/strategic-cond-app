@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { useAuthContext } from "../context/AuthContext";
 import { condominioService } from "../services/condominioService";
-import { ICondominio, ICondominioResponse } from "../types/condominioTypes";
+import {
+  ICondominio,
+  ICondominioResponse,
+  ICondominiosFilter,
+} from "../types/condominioTypes";
 
 export const useCondominio = () => {
   const { authUser } = useAuthContext();
@@ -74,7 +78,23 @@ export const useCondominio = () => {
     }
   };
 
+  // Lista condomínios por conta (Visão Master) - Opcional, mas útil para o Dashboard
+  const listarCondominiosPorConta = async (
+    filtros?: ICondominiosFilter,
+  ): Promise<ICondominioResponse> => {
+    try {
+      setLoading(true);
+      return await condominioService.listarPorConta(filtros);
+    } catch (error) {
+      console.error("❌ Erro ao listar condomínios no Hook:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
+    listarCondominiosPorConta,
     cadastrarNovoCondominio,
     atualizarDadosCondominio,
     buscarCondominioPorId,
