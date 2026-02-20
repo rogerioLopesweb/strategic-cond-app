@@ -10,9 +10,9 @@ export const visitantesService = {
    * 🔍 Lista as visitas com filtros e paginação
    */
   async listar(
-    params?: IListVisitasParamsDTO,
+    params: IListVisitasParamsDTO,
   ): Promise<IListVisitasResponseDTO> {
-    const { data } = await api.get<IListVisitasResponseDTO>("/visitantes", {
+    const { data } = await api.get<IListVisitasResponseDTO>("/api/visitantes", {
       params,
     });
     return data;
@@ -24,7 +24,7 @@ export const visitantesService = {
   async registrarEntrada(
     payload: IRegistrarEntradaDataDTO,
   ): Promise<{ success: boolean; id: string }> {
-    const { data } = await api.post("/visitantes/entrada", payload);
+    const { data } = await api.post("/api/visitantes/entrada", payload);
     return data;
   },
 
@@ -32,7 +32,18 @@ export const visitantesService = {
    * 🚶 Registra a saída de um visitante
    */
   async registrarSaida(visitaId: string): Promise<{ success: boolean }> {
-    const { data } = await api.patch(`/visitantes/saida/${visitaId}`);
+    const { data } = await api.patch(`/api/visitantes/saida/${visitaId}`);
     return data;
+  },
+
+  /**
+   * 🔍 Busca um visitante pelo CPF para auto-preenchimento
+   */
+  async buscarPorCpf(cpf: string, condominioId: string): Promise<any> {
+    // A rota pode variar conforme o seu backend, ajuste se necessário!
+    const response = await api.get(`/api/visitantes/cpf/${cpf}`, {
+      headers: { "x-condominio-id": condominioId },
+    });
+    return response.data;
   },
 };

@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -20,6 +19,7 @@ import { Header } from "@/src/modules/common/components/Header";
 import { Pagination } from "@/src/modules/common/components/Pagination";
 import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
 import { useAuthContext } from "@/src/modules/common/context/AuthContext";
+import { ModalDetalhesVisitante } from "@/src/modules/visitantes/components/ModalDetalhesVisitante";
 import { useVisitantes } from "@/src/modules/visitantes/hooks/useVisitantes";
 import { IVisitaDTO } from "@/src/modules/visitantes/types/IVisita";
 
@@ -48,9 +48,14 @@ export default function ListaVisitantes() {
   // 📝 Filtros Cumulativos
   const [filtroUnidade, setFiltroUnidade] = useState("");
   const [filtroBloco, setFiltroBloco] = useState("");
-  const [filtroCpf, setFiltroCpf] = useState(""); // Substituiu o Urgente
+  const [filtroCpf, setFiltroCpf] = useState("");
   const [statusFiltro, setStatusFiltro] = useState<string>("aberta");
 
+  // 🪟 Estados dos Modais
+  const [modalDetalhesVisible, setModalDetalhesVisible] = useState(false); // ✅ Nome arrumado
+  const [visitaSelecionada, setVisitaSelecionada] = useState<IVisitaDTO | null>(
+    null,
+  );
   const [modalFeedback, setModalFeedback] = useState({
     visible: false,
     type: "success" as any,
@@ -60,16 +65,17 @@ export default function ListaVisitantes() {
 
   const carregarDados = useCallback(
     async (page = 1) => {
+      // ✅ Barreira de segurança: Se não tiver ID do condomínio, nem tenta buscar
       if (authLoading || !authSessao?.condominio?.id) return;
 
       await fetchVisitas({
+        condominio_id: authSessao.condominio.id,
         page: page,
         limit: 12,
         status: statusFiltro === "todas" ? undefined : statusFiltro,
         unidade: filtroUnidade,
         bloco: filtroBloco,
         cpf: filtroCpf,
-        // O Hook/Backend já pega o condominio_id pelo contexto ou Header
       });
     },
     [
@@ -79,6 +85,7 @@ export default function ListaVisitantes() {
       filtroBloco,
       filtroCpf,
       authLoading,
+      fetchVisitas,
     ],
   );
 
@@ -86,32 +93,7 @@ export default function ListaVisitantes() {
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => carregarDados(1), 400);
     return () => clearTimeout(delayDebounceFn);
-  }, [filtroUnidade, filtroBloco, filtroCpf, statusFiltro]);
-
-  // --- Handlers de Ação ---
-  const handleConfirmarSaida = async (visitaId: string, nome: string) => {
-    Alert.alert("Registrar Saída", `Deseja registrar a saída de ${nome}?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Confirmar",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await registrarSaida(visitaId);
-            setModalFeedback({
-              visible: true,
-              type: "success",
-              title: "Sucesso",
-              message: "Saída registrada com sucesso!",
-            });
-            // Não precisa recarregar tudo, o Hook já atualiza localmente!
-          } catch (error) {
-            // O Hook já trata o erro, mas podemos exibir algo se falhar
-          }
-        },
-      },
-    ]);
-  };
+  }, [filtroUnidade, filtroBloco, filtroCpf, statusFiltro, carregarDados]);
 
   const renderItem = ({ item }: { item: IVisitaDTO }) => {
     const isAberta = item.status === "aberta";
@@ -125,15 +107,9 @@ export default function ListaVisitantes() {
           isAberta && { borderColor: statusColor, borderWidth: 0.5 },
         ]}
         onPress={() => {
-          if (isAberta) {
-            handleConfirmarSaida(item.visita_id, item.nome_visitante);
-          } else {
-            // Pode abrir um Modal de Detalhes no futuro
-            Alert.alert(
-              "Visita Finalizada",
-              `Saída registrada em: ${new Date(item.data_saida!).toLocaleString()}`,
-            );
-          }
+          // ✅ Apenas abre o modal, independente do status
+          setVisitaSelecionada(item);
+          setModalDetalhesVisible(true);
         }}
       >
         <View style={styles.cardHeader}>
@@ -277,25 +253,31 @@ export default function ListaVisitantes() {
         </View>
 
         <View style={styles.listWrapper}>
-          <FlatList
-            key={numColumns}
-            data={visitas}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.visita_id}
-            numColumns={numColumns}
-            style={styles.flatList}
-            columnWrapperStyle={
-              numColumns > 1 ? { justifyContent: "flex-start" } : null
-            }
-            contentContainerStyle={styles.list}
-            refreshControl={
-              <RefreshControl
-                refreshing={loading}
-                onRefresh={() => carregarDados(1)}
-              />
-            }
-            ListEmptyComponent={
-              !loading ? (
+          {loading && visitas.length === 0 ? (
+            <ActivityIndicator
+              size="large"
+              color={COLORS.primary}
+              style={{ marginTop: 50 }}
+            />
+          ) : (
+            <FlatList
+              key={numColumns}
+              data={visitas}
+              renderItem={renderItem}
+              keyExtractor={(item) => item.visita_id}
+              numColumns={numColumns}
+              style={styles.flatList}
+              columnWrapperStyle={
+                numColumns > 1 ? { justifyContent: "flex-start" } : null
+              }
+              contentContainerStyle={styles.list}
+              refreshControl={
+                <RefreshControl
+                  refreshing={loading}
+                  onRefresh={() => carregarDados(1)}
+                />
+              }
+              ListEmptyComponent={
                 <View style={styles.emptyBox}>
                   <Ionicons
                     name="walk-outline"
@@ -306,15 +288,9 @@ export default function ListaVisitantes() {
                     Nenhum visitante encontrado.
                   </Text>
                 </View>
-              ) : (
-                <ActivityIndicator
-                  size="large"
-                  color={COLORS.primary}
-                  style={{ marginTop: 50 }}
-                />
-              )
-            }
-          />
+              }
+            />
+          )}
 
           <View style={styles.paginationFixed}>
             <Pagination
@@ -326,6 +302,25 @@ export default function ListaVisitantes() {
           </View>
         </View>
       </View>
+
+      {/* ✅ Modal de Detalhes da Visita (Bug da variável corrigido) */}
+      <ModalDetalhesVisitante
+        visible={modalDetalhesVisible}
+        visita={visitaSelecionada}
+        loading={loading}
+        onClose={() => setModalDetalhesVisible(false)}
+        onRegistrarSaida={async (visitaId) => {
+          // ✅ Correção: statusFiltro é a variável que controla a aba atual
+          await registrarSaida(visitaId, statusFiltro);
+
+          // 🔄 Faz o Reload da lista direto do banco para garantir paginação
+          fetchVisitas({
+            condominio_id: authSessao?.condominio?.id!,
+            page: paginationHook.page, // Mantém o usuário na página que ele estava!
+            status: statusFiltro === "todas" ? undefined : statusFiltro,
+          });
+        }}
+      />
 
       <FeedbackModal
         {...modalFeedback}

@@ -10,6 +10,7 @@ export interface IUnidade {
 }
 
 export interface IMoradorUnidade {
+  unidade_id: string;
   usuario_id: string;
   Nome: string; // Mantido com Maiúscula para bater com o Aliasing do seu SQL
   Tipo: TTipoVinculo; // Usa o tipo definido acima

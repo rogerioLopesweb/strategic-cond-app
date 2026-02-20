@@ -5,6 +5,7 @@ import {
   Alert,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,9 +13,9 @@ import {
   View,
 } from "react-native";
 
-import { FeedbackBox } from "@/src/modules/common/components/FeedbackBox"; // ✅ Import do FeedbackBox adicionado
+import { FeedbackBox } from "@/src/modules/common/components/FeedbackBox";
 import { COLORS, SHADOWS } from "@/src/modules/common/constants/theme";
-import { IVisitaDTO } from "@/src/modules/visitantes/types/IVisita";
+import { IVisitaDTO } from "../types/IVisita";
 
 interface Props {
   visible: boolean;
@@ -31,7 +32,7 @@ export const ModalDetalhesVisitante = ({
   onRegistrarSaida,
   loading,
 }: Props) => {
-  // ✅ Estado do FeedbackBox declarado ANTES de qualquer `return`
+  // ✅ Estado do FeedbackBox declarado ANTES do return null
   const [fb, setFb] = useState<{
     visible: boolean;
     type: "success" | "error" | "warning";
@@ -46,45 +47,49 @@ export const ModalDetalhesVisitante = ({
 
   const isAberta = visita.status === "aberta";
 
+  // ✅ 1. Lógica isolada para dar a baixa e exibir o feedback
+  const executarSaida = async () => {
+    try {
+      console.log("Registrando saída para visita ID:", visita.visita_id); // Log para depuração
+      await onRegistrarSaida(visita.visita_id);
+
+      // Exibe sucesso
+      setFb({
+        visible: true,
+        type: "success",
+        message: "Baixa de saída registrada com sucesso!",
+      });
+
+      // Aguarda 2 segundos para leitura antes de fechar o modal
+      setTimeout(() => {
+        setFb((prev) => ({ ...prev, visible: false }));
+        onClose();
+      }, 2000);
+    } catch (error: any) {
+      // Exibe erro
+      setFb({
+        visible: true,
+        type: "error",
+        message: error.response?.data?.message || "Erro ao registrar a saída.",
+      });
+    }
+  };
+
+  // ✅ 2. Função compatível com Web e Mobile
   const handleSaida = () => {
-    Alert.alert(
-      "Confirmar Saída",
-      `Deseja realmente registrar a saída de ${visita.nome_visitante}?`,
-      [
+    const mensagem = `Deseja realmente registrar a saída de ${visita.nome_visitante}?`;
+    executarSaida();
+    if (Platform.OS === "web") {
+      const confirmou = window.confirm(mensagem);
+      if (confirmou) {
+        executarSaida();
+      }
+    } else {
+      Alert.alert("Confirmar Saída", mensagem, [
         { text: "Cancelar", style: "cancel" },
-        {
-          text: "Confirmar",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // Chama a função do hook que repassa para o Service
-              await onRegistrarSaida(visita.visita_id);
-
-              // Exibe o feedback de sucesso
-              setFb({
-                visible: true,
-                type: "success",
-                message: "Baixa de saída registrada com sucesso!",
-              });
-
-              // Aguarda 2 segundos para o usuário ler a mensagem antes de fechar o modal
-              setTimeout(() => {
-                setFb((prev) => ({ ...prev, visible: false })); // Reseta o feedback
-                onClose(); // Fecha o modal
-              }, 2000);
-            } catch (error: any) {
-              // Exibe o feedback de erro
-              setFb({
-                visible: true,
-                type: "error",
-                message:
-                  error.response?.data?.message || "Erro ao registrar a saída.",
-              });
-            }
-          },
-        },
-      ],
-    );
+        { text: "Confirmar", style: "destructive", onPress: executarSaida },
+      ]);
+    }
   };
 
   // ✅ Função para formatar a data igualzinho ao layout "dom., 8 de fev. às 12:54h"
@@ -132,7 +137,7 @@ export const ModalDetalhesVisitante = ({
             </TouchableOpacity>
           </View>
 
-          {/* ✅ FeedbackBox renderizado no topo do Modal */}
+          {/* ✅ FeedbackBox renderizado aqui no topo do modal */}
           <FeedbackBox
             visible={fb.visible}
             type={fb.type}
@@ -312,10 +317,10 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
-    width: "100%",
-    maxWidth: 900,
+    width: "100%", // ✅ Largura total base
+    maxWidth: 900, // ✅ Limitador para telas grandes (Tablet/Web)
     maxHeight: "90%",
-    alignSelf: "center",
+    alignSelf: "center", // ✅ Centraliza o container no meio da tela no Web
     ...SHADOWS.medium,
   },
   header: {

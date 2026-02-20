@@ -17,17 +17,13 @@ import {
 } from "react-native";
 
 // ✅ Imports Modulares
+import { FeedbackModal } from "@/src/modules/common/components/FeedbackModal";
+import { Header } from "@/src/modules/common/components/Header";
+import { SeletorMoradores } from "@/src/modules/common/components/SeletorMoradores";
+import { COLORS, SHADOWS, SIZES } from "@/src/modules/common/constants/theme";
+import { useAuthContext } from "@/src/modules/common/context/AuthContext";
 import { IMoradorUnidade } from "@/src/modules/common/types/unidadeTypes";
-import { FeedbackModal } from "../../src/modules/common/components/FeedbackModal";
-import { Header } from "../../src/modules/common/components/Header";
-import {
-  COLORS,
-  SHADOWS,
-  SIZES,
-} from "../../src/modules/common/constants/theme";
-import { useAuthContext } from "../../src/modules/common/context/AuthContext";
-import { useEntregas } from "../../src/modules/entregas";
-import { SeletorMoradores } from "../../src/modules/entregas/components/SeletorMoradores";
+import { useEntregas } from "@/src/modules/entregas/hooks/useEntregas";
 
 export default function CadastroEntrega() {
   const router = useRouter();
@@ -55,6 +51,7 @@ export default function CadastroEntrega() {
   const [unidade, setUnidade] = useState("");
   const [destinatario, setDestinatario] = useState("");
   const [moradorIdReal, setMoradorIdReal] = useState<string | null>(null);
+  const [unidadeIdReal, setUnidadeIdReal] = useState<string | null>(null); // ✅ NOVO: Guarda o ID da Unidade
   const [codigo, setCodigo] = useState("");
   const [marketplace, setMarketplace] = useState("Mercado Livre");
   const [tipoEmbalagem, setTipoEmbalagem] = useState("Pacote");
@@ -68,6 +65,7 @@ export default function CadastroEntrega() {
       setUnidade((params.unidade as string) || "");
       setDestinatario((params.morador_nome as string) || "");
       setMoradorIdReal((params.morador_id as string) || null);
+      setUnidadeIdReal((params.unidade_id as string) || null); // ✅ Recupera na edição se existir
       setCodigo((params.codigo_rastreio as string) || "");
       setMarketplace((params.marketplace as string) || "Mercado Livre");
       setTipoEmbalagem((params.tipo_embalagem as string) || "Pacote");
@@ -78,6 +76,25 @@ export default function CadastroEntrega() {
 
   const mostrarAviso = (type: any, title: string, message: string) => {
     setModalConfig({ visible: true, type, title, message });
+  };
+
+  // ✅ LIMPEZA: Se mudar bloco ou unidade, reseta a seleção do morador
+  const handleMudarBloco = (texto: string) => {
+    setBloco(texto);
+    if (!isEditing) {
+      setMoradorIdReal(null);
+      setUnidadeIdReal(null);
+      setDestinatario("");
+    }
+  };
+
+  const handleMudarUnidade = (texto: string) => {
+    setUnidade(texto);
+    if (!isEditing) {
+      setMoradorIdReal(null);
+      setUnidadeIdReal(null);
+      setDestinatario("");
+    }
   };
 
   const tirarFoto = async () => {
@@ -119,6 +136,7 @@ export default function CadastroEntrega() {
       id: params.id as string,
       condominio_id: authSessao.condominio.id,
       morador_id: moradorIdReal,
+      unidade_id: unidadeIdReal || undefined, // ✅ Enviando o ID da Unidade extraído do Seletor
       codigo_rastreio: codigo.trim(),
       unidade: unidade.trim().toUpperCase(),
       bloco: bloco.trim().toUpperCase(),
@@ -194,7 +212,7 @@ export default function CadastroEntrega() {
                   <TextInput
                     style={[styles.input, isEditing && styles.inputDisabled]}
                     value={bloco}
-                    onChangeText={setBloco}
+                    onChangeText={handleMudarBloco} // ✅ Atualizado
                     autoCapitalize="characters"
                     editable={!isEditing && !entregasLoading}
                   />
@@ -206,7 +224,7 @@ export default function CadastroEntrega() {
                   <TextInput
                     style={[styles.input, isEditing && styles.inputDisabled]}
                     value={unidade}
-                    onChangeText={setUnidade}
+                    onChangeText={handleMudarUnidade} // ✅ Atualizado
                     autoCapitalize="characters"
                     editable={!isEditing && !entregasLoading}
                   />
@@ -215,14 +233,14 @@ export default function CadastroEntrega() {
 
               {!isEditing && (
                 <SeletorMoradores
-                  // ✅ O '!' garante ao TS que o ID existe nesse ponto
                   condominioId={authSessao?.condominio?.id!}
                   bloco={bloco}
                   unidade={unidade}
                   selecionadoId={moradorIdReal}
-                  // ✅ Nome da prop corrigido para bater com o componente filho
+                  titulo="Selecione quem receberá a entrega:"
                   onSelecionarMorador={(m: IMoradorUnidade) => {
                     setMoradorIdReal(m.usuario_id);
+                    setUnidadeIdReal(m.unidade_id); // ✅ Capturando a Unidade ID
                     setDestinatario(m.Nome || "Morador Selecionado");
                   }}
                 />
@@ -435,14 +453,14 @@ const styles = StyleSheet.create({
   },
   subLabel: { fontSize: 10, color: COLORS.textSecondary },
   row: { flexDirection: "row", marginBottom: 15 },
-  inputGroup: { borderBottomWidth: 1.5, borderBottomColor: "#A0A0A0" }, // ✅ Borda mais escura cinza
+  inputGroup: { borderBottomWidth: 1.5, borderBottomColor: "#A0A0A0" },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
     borderBottomWidth: 1.5,
     borderBottomColor: "#A0A0A0",
     marginBottom: 20,
-  }, // ✅ Borda mais escura cinza
+  },
   input: {
     flex: 1,
     paddingVertical: 8,
@@ -470,7 +488,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#B0B0B0", // ✅ Borda dos chips também mais definida
+    borderColor: "#B0B0B0",
   },
   chipAtivo: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   chipText: { fontSize: 10, fontWeight: "bold", color: COLORS.textMain },
@@ -493,7 +511,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginTop: 5,
-  }, // ✅ TextArea com borda completa escura
+  },
   btnSalvar: {
     backgroundColor: COLORS.success,
     padding: 18,

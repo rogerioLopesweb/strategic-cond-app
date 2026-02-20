@@ -17,7 +17,8 @@ interface Props {
   condominioId: string;
   bloco: string;
   unidade: string;
-  selecionadoId?: string | null; // ✅ Ajustado para aceitar null
+  selecionadoId?: string | null;
+  titulo?: string; // ✅ Nova prop para flexibilidade
   onSelecionarMorador: (morador: IMoradorUnidade) => void;
 }
 
@@ -25,7 +26,8 @@ export const SeletorMoradores = ({
   condominioId,
   bloco,
   unidade,
-  selecionadoId, // ✅ Agora extraído corretamente
+  selecionadoId,
+  titulo = "Selecione o morador!", // ✅ Texto padrão mantido
   onSelecionarMorador,
 }: Props) => {
   const { getMoradoresUnidade, loading } = useUnidades();
@@ -56,19 +58,18 @@ export const SeletorMoradores = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.titulo}>Selecione quem receberá a entrega:</Text>
+      <Text style={styles.titulo}>{titulo}</Text>
 
       <FlatList
         data={moradores}
         keyExtractor={(item) => item.usuario_id}
         renderItem={({ item }) => {
-          const isSelected = item.usuario_id === selecionadoId; // ✅ Verifica seleção
+          const isSelected = item.usuario_id === selecionadoId;
 
           return (
             <TouchableOpacity
               style={[styles.itemMorador, isSelected && styles.itemSelecionado]}
               onPress={() => {
-                // ✅ Proteção contra erro de "is not a function"
                 if (typeof onSelecionarMorador === "function") {
                   onSelecionarMorador(item);
                 }
@@ -116,7 +117,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#eee",
   },
-  itemSelecionado: { borderColor: COLORS.primary, backgroundColor: "#F0F9FF" }, // ✅ Estilo de seleção
+  itemSelecionado: { borderColor: COLORS.primary, backgroundColor: "#F0F9FF" },
   info: { flex: 1 },
   nome: { fontSize: 16, fontWeight: "600", color: COLORS.textMain },
   tipo: { fontSize: 11, color: COLORS.grey300, marginTop: 2 },

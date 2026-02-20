@@ -22,7 +22,7 @@ export function useVisitantes() {
   /**
    * 🔍 Busca a lista de visitas (aceita filtros dinâmicos)
    */
-  const fetchVisitas = useCallback(async (filtros?: IListVisitasParamsDTO) => {
+  const fetchVisitas = useCallback(async (filtros: IListVisitasParamsDTO) => {
     setLoading(true);
     setError(null);
     try {
@@ -46,57 +46,87 @@ export function useVisitantes() {
   /**
    * 🚪 Registra uma nova entrada e atualiza a lista
    */
-  const registrarEntrada = async (dados: IRegistrarEntradaDataDTO) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await visitantesService.registrarEntrada(dados);
-      // Recarrega a lista para mostrar o novo visitante (pode focar na pág 1)
-      await fetchVisitas({ page: 1 });
-      return res;
-    } catch (err: any) {
-      const mensagem =
-        err.response?.data?.message || "Erro ao registrar entrada.";
-      setError(mensagem);
-      throw err; // Lança para o componente exibir um Alert/Toast
-    } finally {
-      setLoading(false);
-    }
-  };
+  const registrarEntrada = useCallback(
+    async (dados: IRegistrarEntradaDataDTO) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await visitantesService.registrarEntrada(dados);
+
+        // ✅ Passando o condominio_id obrigatoriamente
+        await fetchVisitas({
+          page: 1,
+          condominio_id: dados.condominio_id,
+        });
+
+        return res;
+      } catch (err: any) {
+        const mensagem =
+          err.response?.data?.message || "Erro ao registrar entrada.";
+        setError(mensagem);
+        throw err; // Lança para o componente exibir um Alert/Toast
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fetchVisitas], // ✅ Adicionado como dependência para evitar recriação
+  );
 
   /**
-   * 🚶 Registra a saída e atualiza o status na lista localmente (mais rápido)
+   * 🚪 Registra a saída e atualiza a interface instantaneamente
    */
-  const registrarSaida = async (visitaId: string) => {
-    setLoading(true);
-    setError(null);
+  const registrarSaida = useCallback(
+    async (visitaId: string, abaAtual?: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        await visitantesService.registrarSaida(visitaId);
+
+        // ✅ MÁGICA DE UX MELHORADA:
+        setVisitas((prevVisitas) => {
+          // Se o porteiro estiver na aba "Abertas", faz o card sumir na hora!
+          if (abaAtual === "aberta") {
+            return prevVisitas.filter(
+              (visita) => visita.visita_id !== visitaId,
+            );
+          }
+          // Se estiver na aba "Todas", apenas atualiza o status para ficar cinza
+          return prevVisitas.map((visita) =>
+            visita.visita_id === visitaId
+              ? {
+                  ...visita,
+                  status: "finalizada",
+                  data_saida: new Date().toISOString(),
+                }
+              : visita,
+          );
+        });
+      } catch (err: any) {
+        const mensagem =
+          err.response?.data?.message || "Erro ao registrar saída.";
+        setError(mensagem);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [],
+  );
+
+  /**
+   * 🔍 Busca os dados do visitante para preencher o formulário
+   */
+  const buscarVisitantePorCpf = async (cpf: string, condominioId: string) => {
     try {
-      await visitantesService.registrarSaida(visitaId);
-
-      // Atualiza o estado local para "finalizada" sem precisar bater na API de novo
-      setVisitas((prev) =>
-        prev.map((v) =>
-          v.visita_id === visitaId
-            ? {
-                ...v,
-                status: "finalizada",
-                data_saida: new Date().toISOString(),
-              }
-            : v,
-        ),
-      );
-
-      return true;
-    } catch (err: any) {
-      const mensagem =
-        err.response?.data?.message || "Erro ao registrar saída.";
-      setError(mensagem);
-      throw err;
-    } finally {
-      setLoading(false);
+      const dados = await visitantesService.buscarPorCpf(cpf, condominioId);
+      console.log("Dados encontrados para CPF:", cpf, dados); // Log para depuração
+      return dados; // Retorna o visitante se encontrar
+    } catch (err) {
+      return null; // Retorna nulo silenciosamente se não encontrar (é um visitante novo)
     }
   };
 
+  // 👇 Lembre-se de exportar a função aqui embaixo no return!
   return {
     visitas,
     loading,
@@ -105,5 +135,6 @@ export function useVisitantes() {
     fetchVisitas,
     registrarEntrada,
     registrarSaida,
+    buscarVisitantePorCpf, // ✅ Nova função exportada
   };
 }
