@@ -23,6 +23,7 @@ interface IBotaoAcaoProps {
   cor: string;
   rota?: string;
   onPress?: () => void;
+  destaque?: boolean; // Nova prop para o botão brilhar
 }
 
 const BotaoAcao = ({
@@ -32,6 +33,7 @@ const BotaoAcao = ({
   cor,
   rota,
   onPress,
+  destaque,
 }: IBotaoAcaoProps) => {
   const router = useRouter();
   const handlePress = () => {
@@ -41,7 +43,10 @@ const BotaoAcao = ({
 
   return (
     <TouchableOpacity
-      style={styles.cardAcao}
+      style={[
+        styles.cardAcao,
+        destaque && { borderColor: cor, borderWidth: 1.5, ...SHADOWS.medium },
+      ]}
       onPress={handlePress}
       activeOpacity={0.7}
     >
@@ -49,7 +54,9 @@ const BotaoAcao = ({
         <Ionicons name={icone} size={28} color={COLORS.white} />
       </View>
       <View style={styles.textoContainer}>
-        <Text style={styles.tituloAcao}>{titulo}</Text>
+        <Text style={[styles.tituloAcao, destaque && { color: cor }]}>
+          {titulo}
+        </Text>
         <Text style={styles.subTituloAcao}>{subTitulo}</Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color={COLORS.grey300} />
@@ -88,9 +95,10 @@ export default function Home() {
   // Se por algum motivo a sessão cair mas a tela não disparar o redirect do layout imediatamente
   if (!authSessao) return null;
 
-  // Cores temáticas para os módulos
+  // 🎨 Cores temáticas para os módulos
+  const COR_ASSISTENTE = "#6366F1"; // Indigo/Roxo Tech (Cor de IA)
   const COR_ENTREGAS = "#6b93c1";
-  const COR_VISITANTES = "#10B981"; // Verde Esmeralda para diferenciar bem
+  const COR_VISITANTES = "#10B981"; // Verde Esmeralda
 
   return (
     <View style={styles.container}>
@@ -106,7 +114,22 @@ export default function Home() {
       >
         <View style={styles.contentWrapper}>
           {/* ==============================================
-              MÓDULO: ENTREGAS E ENCOMENDAS
+              🤖 MÓDULO: ASSISTENTE VIRTUAL (DESTAQUE MÁXIMO)
+          ============================================== */}
+          <Text style={styles.labelSessao}>INTELIGÊNCIA ARTIFICIAL</Text>
+          <BotaoAcao
+            titulo="Falar com o Otto"
+            subTitulo="Seu assistente virtual inteligente da portaria"
+            icone="chatbubbles-outline"
+            cor={COR_ASSISTENTE}
+            rota="/assistente/chat" // ✅ Caminho para a nova tela
+            destaque={true}
+          />
+
+          <View style={styles.divider} />
+
+          {/* ==============================================
+              📦 MÓDULO: ENTREGAS E ENCOMENDAS
           ============================================== */}
           <Text style={styles.labelSessao}>
             {authSessao.isMorador ? "MINHAS ENCOMENDAS" : "MÓDULO DE ENTREGAS"}
@@ -149,7 +172,7 @@ export default function Home() {
           <View style={styles.divider} />
 
           {/* ==============================================
-              MÓDULO: VISITANTES E ACESSOS
+              🚶 MÓDULO: VISITANTES E ACESSOS
           ============================================== */}
           <Text style={styles.labelSessao}>
             {authSessao.isMorador ? "MEUS VISITANTES" : "CONTROLE DE ACESSO"}
@@ -161,7 +184,7 @@ export default function Home() {
               subTitulo="Cadastrar e liberar novo visitante"
               icone="person-add-outline"
               cor={COR_VISITANTES}
-              rota="/visitantes/cadastro" // Próxima tela que faremos
+              rota="/visitantes/cadastro"
             />
           )}
 
@@ -178,13 +201,13 @@ export default function Home() {
             }
             icone="people-outline"
             cor={COR_VISITANTES}
-            rota="/visitantes/lista-visitantes" // A tela que acabamos de criar
+            rota="/visitantes/lista-visitantes"
           />
 
           <View style={styles.divider} />
 
           {/* ==============================================
-              MÓDULO: ADMIN E SISTEMA
+              ⚙️ MÓDULO: ADMIN E SISTEMA
           ============================================== */}
           {isAdminOuSindico && (
             <Text style={styles.labelSessao}>ADMINISTRAÇÃO</Text>
